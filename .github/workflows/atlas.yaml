@@ -1,0 +1,55 @@
+name: assistants-core.sentralix.ru deploy scripts
+
+# env:
+#   HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  deploy:
+    runs-on: [ self-hosted, Linux, X64, atlas ]
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        # Полная история помогает избежать проблем с gitlink в старых коммитах
+        fetch-depth: 0
+        # Явно отключаем субмодули (у нас их нет)
+        submodules: false
+        # Очищаем рабочую директорию перед checkout
+        clean: true
+        # Оставляем креды для дальнейших шагов, как было
+        persist-credentials: true
+
+    - name: Deploy vector-store files
+      if: ${{ github.event_name == 'push' }}
+      run: |
+        echo "Очистка app через docker run под рутом"
+        docker run --rm -v /srv2/vector-store/docker/app:/app alpine:latest sh -c '
+          find /app -type f ! -name "*.json" ! -name "*.pkl" ! -name "*.pyc" -delete &&
+          find /app -type d -name "__pycache__" -exec rm -rf {} +'
+
+
+        echo "Sync vector-store files"
+        rsync -av --delete \
+          --exclude='.git' \
+          --exclude='.github' \
+          --exclude='.dockerignore' \
+          --exclude='.gitignore' \
+          --exclude='README.md' \
+          --exclude='logs/' \
+          --exclude='files/' \
+          $GITHUB_WORKSPACE/ /srv2/vector-store/docker
+        touch /srv2/vector-store/.env
+        cp /srv2/vector-store/.env /srv2/vector-store/docker/.env
+        cd /srv2/vector-store/docker
+        docker-compose down || true
+
+    - name: Deploy vector-store
+      run: |
+        cd /srv2/vector-store/docker
+        docker-compose up -d
