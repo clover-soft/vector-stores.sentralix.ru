@@ -1,0 +1,29 @@
+services:
+  vector-store-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vector-store-hub
+    restart: unless-stopped
+    volumes:
+      - /srv2/vector-store/docker/app:/app
+      - /srv2/vector-store/logs:/var/log
+      - /srv2/vector-store/files:/files
+    env_file:
+      - .env
+    environment:
+      - ALLOW_HOSTS=193.110.239.238,146.66.195.8
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=[%(asctime)s][%(name)s][%(levelname)s][%(request_id)s] %(message)s
+      - LOG_FILE=/var/log/vector-store-log.log
+      - DATABASE_URI=${DATABASE_URI}
+      - YC_FOLDER_ID=${YC_FOLDER_ID}
+      - YC_SA_KEY_JSON_B64=${YC_SA_KEY_JSON_B64}
+    networks:
+      docker_net:
+        ipv4_address: 172.28.0.12
+
+
+networks:
+  docker_net:
+    external: true
