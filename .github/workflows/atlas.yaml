@@ -28,9 +28,9 @@ jobs:
     - name: Deploy vector-store files
       if: ${{ github.event_name == 'push' }}
       run: |
+        cd /srv2/vector-store/docker
         echo "Очистка app через docker run под рутом"
-        docker run --rm -v /srv2/vector-store/docker:/docker alpine:latest sh -c '
-          find /docker/app -mindepth 1 -delete'
+        docker run --rm -v "$PWD:/docker" alpine:latest sh -c 'rm -rf /docker/app'
 
 
         echo "Sync vector-store files"
