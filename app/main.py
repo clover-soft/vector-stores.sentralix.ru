@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
 from api.files import router as files_router
+from api.indexes import router as indexes_router
 from api.health import router as health_router
 from config import get_config
 from database import init_db
@@ -47,6 +48,7 @@ app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
 app.include_router(files_router)
+app.include_router(indexes_router)
 
 
 @app.on_event("startup")

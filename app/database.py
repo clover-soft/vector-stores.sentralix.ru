@@ -70,8 +70,12 @@ def init_db() -> None:
         return
 
     import models.rag_file
+    import models.rag_index
+    import models.rag_index_file
 
     _ = models.rag_file.RagFile
+    _ = models.rag_index.RagIndex
+    _ = models.rag_index_file.RagIndexFile
 
     engine = get_engine()
     try:
