@@ -39,6 +39,7 @@ class FilesService:
         file_type: str | None,
         tags: dict | list | None,
         notes: str | None,
+        chunking_strategy: dict | None,
     ) -> RagFile:
         file_id = str(uuid4())
 
@@ -68,6 +69,7 @@ class FilesService:
             file_type=detected_type,
             local_path=str(path),
             size_bytes=size_bytes,
+            chunking_strategy=chunking_strategy,
             tags=tags,
             notes=notes,
         )
@@ -101,6 +103,7 @@ class FilesService:
         file_name: str | None,
         tags: dict | list | None,
         notes: str | None,
+        chunking_strategy: dict | None,
     ) -> RagFile | None:
         rag_file = self.get_file(file_id)
         if rag_file is None:
@@ -127,6 +130,9 @@ class FilesService:
 
         if notes is not None:
             rag_file.notes = notes
+
+        if chunking_strategy is not None:
+            rag_file.chunking_strategy = chunking_strategy
 
         self._db.commit()
         self._db.refresh(rag_file)
@@ -161,5 +167,16 @@ def parse_tags(tags: str | None) -> dict | list | None:
     value = json.loads(tags)
     if not isinstance(value, (dict, list)):
         raise ValueError("tags должен быть JSON-объектом или JSON-массивом")
+
+    return value
+
+
+def parse_chunking_strategy(chunking_strategy: str | None) -> dict | None:
+    if chunking_strategy is None or chunking_strategy.strip() == "":
+        return None
+
+    value = json.loads(chunking_strategy)
+    if not isinstance(value, dict):
+        raise ValueError("chunking_strategy должен быть JSON-объектом")
 
     return value

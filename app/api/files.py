@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from schemas.files import FileOut, FilePatchIn, FilesListOut
-from services.files_service import FilesService, parse_tags
+from services.files_service import FilesService, parse_chunking_strategy, parse_tags
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
 
@@ -25,11 +25,13 @@ def upload_file(
     file_type: str | None = Form(default=None),
     tags: str | None = Form(default=None),
     notes: str | None = Form(default=None),
+    chunking_strategy: str | None = Form(default=None),
     domain_id: str = Depends(get_domain_id),
     db: Session = Depends(get_db),
 ):
     try:
         parsed_tags = parse_tags(tags)
+        parsed_chunking_strategy = parse_chunking_strategy(chunking_strategy)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -39,6 +41,7 @@ def upload_file(
         file_type=file_type,
         tags=parsed_tags,
         notes=notes,
+        chunking_strategy=parsed_chunking_strategy,
     )
     return FileOut.model_validate(rag_file, from_attributes=True)
 
@@ -103,6 +106,7 @@ def patch_file(
             file_name=payload.file_name,
             tags=payload.tags,
             notes=payload.notes,
+            chunking_strategy=payload.chunking_strategy,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

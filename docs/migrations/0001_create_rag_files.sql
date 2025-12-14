@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS rag_files (
   external_file_id VARCHAR(256) NULL,
   external_uploaded_at DATETIME NULL,
 
+  chunking_strategy JSON NULL,
+
   tags JSON NULL,
   notes TEXT NULL,
 

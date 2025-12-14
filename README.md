@@ -90,12 +90,13 @@
  ---
  
  ## Документация
- 
- - **Техническое задание (ТЗ)**: [`docs/technical_specification.md`](./docs/technical_specification.md)
- - **План разработки по шагам**: [`docs/steps/00_steps_overview.md`](./docs/steps/00_steps_overview.md)
- 
- ---
- 
- ## Миграции
+
+- **Техническое задание (ТЗ)**: [`docs/technical_specification.md`](./docs/technical_specification.md)
+- **План разработки по шагам**: [`docs/steps/00_steps_overview.md`](./docs/steps/00_steps_overview.md)
+- **Решения и изменения**: [`docs/solutions_and_changes.md`](./docs/solutions_and_changes.md)
+
+---
+
+## Миграции
  
  Миграции хранятся в `docs/migrations/` (по требованию проекта).

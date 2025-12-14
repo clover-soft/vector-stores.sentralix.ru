@@ -14,15 +14,16 @@ class IndexOut(BaseModel):
     provider_type: str
     external_id: str | None = None
 
-    index_type: str
-    max_chunk_size: int | None = None
-    chunk_overlap: int | None = None
+    name: str | None = None
+    description: str | None = None
+
+    chunking_strategy: dict | None = None
+    expires_after: dict | None = None
+    file_ids: list[str] | None = None
+    metadata: dict[str, str] | None = Field(default=None, validation_alias="metadata_")
 
     indexing_status: str
     indexed_at: datetime | None = None
-
-    provider_ttl_days: int | None = None
-    description: str | None = None
 
     created_at: datetime
     updated_at: datetime
@@ -30,24 +31,26 @@ class IndexOut(BaseModel):
 
 class IndexCreateIn(BaseModel):
     provider_type: str
-    index_type: str
 
-    max_chunk_size: int | None = Field(default=None)
-    chunk_overlap: int | None = Field(default=None)
-
-    provider_ttl_days: int | None = Field(default=None)
+    name: str | None = Field(default=None)
     description: str | None = Field(default=None)
+
+    chunking_strategy: dict | None = Field(default=None)
+    expires_after: dict | None = Field(default=None)
+    file_ids: list[str] | None = Field(default=None)
+    metadata: dict[str, str] | None = Field(default=None)
 
 
 class IndexPatchIn(BaseModel):
     provider_type: str | None = Field(default=None)
-    index_type: str | None = Field(default=None)
 
-    max_chunk_size: int | None = Field(default=None)
-    chunk_overlap: int | None = Field(default=None)
-
-    provider_ttl_days: int | None = Field(default=None)
+    name: str | None = Field(default=None)
     description: str | None = Field(default=None)
+
+    chunking_strategy: dict | None = Field(default=None)
+    expires_after: dict | None = Field(default=None)
+    file_ids: list[str] | None = Field(default=None)
+    metadata: dict[str, str] | None = Field(default=None)
 
 
 class IndexesListOut(BaseModel):

@@ -34,11 +34,12 @@ def create_index(
     service = IndexesService(db=db, domain_id=domain_id)
     rag_index = service.create_index(
         provider_type=payload.provider_type,
-        index_type=payload.index_type,
-        max_chunk_size=payload.max_chunk_size,
-        chunk_overlap=payload.chunk_overlap,
-        provider_ttl_days=payload.provider_ttl_days,
+        name=payload.name,
         description=payload.description,
+        chunking_strategy=payload.chunking_strategy,
+        expires_after=payload.expires_after,
+        file_ids=payload.file_ids,
+        metadata=payload.metadata,
     )
     return IndexOut.model_validate(rag_index, from_attributes=True)
 
@@ -79,11 +80,12 @@ def patch_index(
     rag_index = service.update_index(
         index_id=index_id,
         provider_type=payload.provider_type,
-        index_type=payload.index_type,
-        max_chunk_size=payload.max_chunk_size,
-        chunk_overlap=payload.chunk_overlap,
-        provider_ttl_days=payload.provider_ttl_days,
+        name=payload.name,
         description=payload.description,
+        chunking_strategy=payload.chunking_strategy,
+        expires_after=payload.expires_after,
+        file_ids=payload.file_ids,
+        metadata=payload.metadata,
     )
     if rag_index is None:
         raise HTTPException(status_code=404, detail="Индекс не найден")

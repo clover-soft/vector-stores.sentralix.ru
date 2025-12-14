@@ -40,16 +40,20 @@ DDL (как источник истины):
 - `domain_id` — принадлежность домену.
 - `provider_type` — `yandex` / `sentralix` / `openai`.
 - `external_id` — идентификатор индекса у провайдера.
-- `index_type` — `text` / `vector` / `hybrid`.
-- `max_chunk_size`, `chunk_overlap` — параметры чанкинга.
+- `name` — имя индекса (как в OpenAI vector stores).
+- `description` — описание индекса.
+- `chunking_strategy` — стратегия чанкинга (OpenAI).
+- `expires_after` — политика истечения (OpenAI).
+- `file_ids` — список идентификаторов файлов провайдера (OpenAI).
+- `metadata` — map с дополнительными метаданными (OpenAI).
 - `indexing_status` — `not_indexed | in_progress | done | failed`.
 - `indexed_at` — время начала последней попытки индексации.
-- `provider_ttl_days` — TTL индекса у провайдера.
 
 ### 3.2. Таблица `rag_files`
 DDL (как источник истины):
 - `file_name`, `file_type`, `local_path`, `size_bytes`.
 - `external_file_id`, `external_uploaded_at` — при наличии загрузки в провайдера.
+- `chunking_strategy` — стратегия чанкинга (OpenAI). Если не задана, используется `auto`.
 - `domain_id`.
 - `tags` — JSON.
 - `notes`.
@@ -197,6 +201,7 @@ DDL (как источник истины):
 - `POST /files` (multipart upload)
   - загрузка файла в `/files/<domain_id>/...`
   - создание записи `rag_files`
+  - опционально: `chunking_strategy` (JSON-объект, передаётся как строка в multipart)
 - `GET /files`
   - список файлов домена
 - `GET /files/{file_id}`
@@ -204,7 +209,7 @@ DDL (как источник истины):
 - `GET /files/{file_id}/download`
   - скачивание
 - `PATCH /files/{file_id}`
-  - изменение `tags`, `notes`, (опционально `file_name` если допускается)
+  - изменение `tags`, `notes`, `chunking_strategy` (опционально `file_name` если допускается)
 - `DELETE /files/{file_id}`
   - удаление записи и физического файла
 
@@ -216,7 +221,7 @@ DDL (как источник истины):
 - `GET /indexes/{index_id}`
   - детали индекса
 - `PATCH /indexes/{index_id}`
-  - изменение параметров (включая `provider_ttl_days`, `max_chunk_size`, `chunk_overlap`, `description` и т.д.)
+  - изменение параметров (включая `name`, `description`, `chunking_strategy`, `expires_after`, `file_ids`, `metadata`)
 - `DELETE /indexes/{index_id}`
   - удаление локального индекса
 

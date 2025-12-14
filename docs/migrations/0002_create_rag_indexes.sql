@@ -5,15 +5,16 @@ CREATE TABLE IF NOT EXISTS rag_indexes (
   provider_type VARCHAR(32) NOT NULL,
   external_id VARCHAR(256) NULL,
 
-  index_type VARCHAR(16) NOT NULL,
-  max_chunk_size INT NULL,
-  chunk_overlap INT NULL,
+  name VARCHAR(256) NULL,
+  description TEXT NULL,
+
+  chunking_strategy JSON NULL,
+  expires_after JSON NULL,
+  file_ids JSON NULL,
+  metadata JSON NULL,
 
   indexing_status VARCHAR(32) NOT NULL DEFAULT 'not_indexed',
   indexed_at DATETIME NULL,
-
-  provider_ttl_days INT NULL,
-  description TEXT NULL,
 
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
