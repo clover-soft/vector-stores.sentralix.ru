@@ -3,8 +3,10 @@ import sys
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
+from api.files import router as files_router
 from api.health import router as health_router
 from config import get_config
+from database import init_db
 from utils.logger import configure_logging
 from utils.middlewares import AllowHostsMiddleware, RequestIdMiddleware
 
@@ -44,8 +46,10 @@ app.add_middleware(AllowHostsMiddleware, allow_hosts=config.allow_hosts)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
+app.include_router(files_router)
 
 
 @app.on_event("startup")
 async def _startup() -> None:
+    init_db()
     log_startup_info()
