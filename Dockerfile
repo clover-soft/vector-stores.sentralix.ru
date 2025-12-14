@@ -21,6 +21,7 @@ RUN pip install email-validator
 RUN pip install yandex-cloud-ml-sdk
 RUN pip install "pyjwt[crypto]"
 RUN pip install jsonpath-ng
+RUN pip install openai
 
 WORKDIR /app
 
