@@ -29,9 +29,8 @@ jobs:
       if: ${{ github.event_name == 'push' }}
       run: |
         echo "Очистка app через docker run под рутом"
-        docker run --rm -v /srv2/vector-store/docker/app:/app alpine:latest sh -c '
-          find /app -type f ! -name "*.json" ! -name "*.pkl" ! -name "*.pyc" -delete &&
-          find /app -type d -name "__pycache__" -exec rm -rf {} +'
+        docker run --rm -v /srv2/vector-store/docker:/docker alpine:latest sh -c '
+          find /docker/app -mindepth 1 -delete'
 
 
         echo "Sync vector-store files"
