@@ -1,9 +1,9 @@
 services:
-  vector-store-hub:
+  vector-stores:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: vector-store-hub
+    container_name: vector-stores
     restart: unless-stopped
     volumes:
       - /srv2/vector-store/docker/app:/app
