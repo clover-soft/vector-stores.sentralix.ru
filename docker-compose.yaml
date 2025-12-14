@@ -21,9 +21,12 @@ services:
       - YC_SA_KEY_JSON_B64=${YC_SA_KEY_JSON_B64}
     networks:
       docker_net:
-        ipv4_address: 172.28.0.12
+        ipv4_address: 172.28.0.31
 
 
 networks:
   docker_net:
     external: true
+
+
+    
