@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+import logging
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from config import get_config
+
+logger = logging.getLogger("vector-stores.database")
 
 Base = declarative_base()
 
@@ -22,6 +26,13 @@ def get_engine():
     config = get_config()
     if not config.database_uri:
         raise RuntimeError("DATABASE_URI не задан")
+
+    try:
+        safe_uri = make_url(config.database_uri).render_as_string(hide_password=True)
+    except Exception:
+        safe_uri = "<invalid DATABASE_URI>"
+
+    logger.info("Подключение к базе данных: %s", safe_uri)
 
     _engine = create_engine(
         config.database_uri,
@@ -66,4 +77,12 @@ def init_db() -> None:
     _ = models.rag_file.RagFile
 
     engine = get_engine()
+    try:
+        with engine.connect() as conn:
+            conn.exec_driver_sql("SELECT 1")
+        logger.info("Подключение к базе данных успешно")
+    except Exception:
+        logger.exception("Ошибка подключения к базе данных")
+        raise
+
     Base.metadata.create_all(bind=engine)
