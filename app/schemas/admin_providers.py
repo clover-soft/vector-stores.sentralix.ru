@@ -86,3 +86,43 @@ class ProviderFileUploadPatchIn(BaseModel):
 
 class ProviderFileUploadsListOut(BaseModel):
     items: list[ProviderFileUploadOut]
+
+
+class VectorStoreCreateIn(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    chunking_strategy: dict | None = None
+    expires_after: dict | None = None
+    file_ids: list[str] | None = None
+    metadata: dict[str, str] | None = None
+
+
+class VectorStoreUpdateIn(BaseModel):
+    name: str | None = None
+    expires_after: dict | None = None
+    metadata: dict[str, str] | None = None
+
+
+class VectorStoreSearchIn(BaseModel):
+    query: str | list[str]
+    filters: dict | None = None
+    max_num_results: int | None = None
+    ranking_options: dict | None = None
+    rewrite_query: bool | None = None
+
+
+class VectorStoreFileAttachIn(BaseModel):
+    file_id: str
+    attributes: dict | None = None
+    chunking_strategy: dict | None = None
+
+
+class VectorStoreFileUpdateIn(BaseModel):
+    attributes: dict
+
+
+class VectorStoreFileBatchCreateIn(BaseModel):
+    file_ids: list[str] | None = None
+    files: list[dict] | None = None
+    attributes: dict | None = None
+    chunking_strategy: dict | None = None

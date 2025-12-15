@@ -16,12 +16,26 @@ from schemas.admin_providers import (
     ProviderFileUploadPatchIn,
     ProviderFileUploadsListOut,
     ProviderHealthOut,
+    VectorStoreCreateIn,
+    VectorStoreFileAttachIn,
+    VectorStoreFileBatchCreateIn,
+    VectorStoreFileUpdateIn,
+    VectorStoreSearchIn,
+    VectorStoreUpdateIn,
 )
 from services.provider_file_uploads_service import ProviderFileUploadsService
 from services.provider_vector_stores_service import ProviderVectorStoresService
 from services.providers_connections_service import ProvidersConnectionsService
 
 router = APIRouter(prefix="/api/v1/admin/providers", tags=["providers-admin"])
+
+
+def _raise_provider_error(e: Exception) -> None:
+    if isinstance(e, ValueError):
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if isinstance(e, NotImplementedError):
+        raise HTTPException(status_code=501, detail=str(e)) from e
+    raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 @router.get("/connections", response_model=ProviderConnectionsListOut)
@@ -175,8 +189,279 @@ def list_vector_stores(provider_type: str, limit: int = 100, db: Session = Depen
     try:
         service = ProviderVectorStoresService(db=db)
         return {"items": service.list_vector_stores(provider_type=provider_type, limit=limit)}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.post("/{provider_type}/vector-stores")
+def create_vector_store(
+    provider_type: str,
+    payload: VectorStoreCreateIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.create_vector_store(provider_type=provider_type, **payload.model_dump())
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}")
+def retrieve_vector_store(provider_type: str, vector_store_id: str, db: Session = Depends(get_db)):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.retrieve_vector_store(provider_type=provider_type, vector_store_id=vector_store_id)
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.patch("/{provider_type}/vector-stores/{vector_store_id}")
+def update_vector_store(
+    provider_type: str,
+    vector_store_id: str,
+    payload: VectorStoreUpdateIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.update_vector_store(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            **payload.model_dump(),
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.delete("/{provider_type}/vector-stores/{vector_store_id}")
+def delete_vector_store(provider_type: str, vector_store_id: str, db: Session = Depends(get_db)):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.delete_vector_store(provider_type=provider_type, vector_store_id=vector_store_id)
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.post("/{provider_type}/vector-stores/{vector_store_id}/search")
+def search_vector_store(
+    provider_type: str,
+    vector_store_id: str,
+    payload: VectorStoreSearchIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        items = service.search_vector_store(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            **payload.model_dump(),
+        )
+        return {"items": items}
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.post("/{provider_type}/vector-stores/{vector_store_id}/files")
+def attach_file_to_vector_store(
+    provider_type: str,
+    vector_store_id: str,
+    payload: VectorStoreFileAttachIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.attach_file_to_vector_store(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            **payload.model_dump(),
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}/files")
+def list_vector_store_files(
+    provider_type: str,
+    vector_store_id: str,
+    limit: int = 100,
+    after: str | None = None,
+    before: str | None = None,
+    order: str | None = None,
+    status_filter: str | None = None,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        items = service.list_vector_store_files(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            limit=limit,
+            after=after,
+            before=before,
+            order=order,
+            status_filter=status_filter,
+        )
+        return {"items": items}
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}/files/{file_id}")
+def retrieve_vector_store_file(
+    provider_type: str,
+    vector_store_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.retrieve_vector_store_file(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.patch("/{provider_type}/vector-stores/{vector_store_id}/files/{file_id}")
+def update_vector_store_file(
+    provider_type: str,
+    vector_store_id: str,
+    file_id: str,
+    payload: VectorStoreFileUpdateIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.update_vector_store_file(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+            **payload.model_dump(),
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.delete("/{provider_type}/vector-stores/{vector_store_id}/files/{file_id}")
+def detach_file_from_vector_store(
+    provider_type: str,
+    vector_store_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.detach_file_from_vector_store(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}/files/{file_id}/content")
+def retrieve_vector_store_file_content(
+    provider_type: str,
+    vector_store_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        items = service.retrieve_vector_store_file_content(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            file_id=file_id,
+        )
+        return {"items": items}
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.post("/{provider_type}/vector-stores/{vector_store_id}/file-batches")
+def create_vector_store_file_batch(
+    provider_type: str,
+    vector_store_id: str,
+    payload: VectorStoreFileBatchCreateIn,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.create_vector_store_file_batch(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            **payload.model_dump(),
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}/file-batches/{batch_id}")
+def retrieve_vector_store_file_batch(
+    provider_type: str,
+    vector_store_id: str,
+    batch_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.retrieve_vector_store_file_batch(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            batch_id=batch_id,
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.post("/{provider_type}/vector-stores/{vector_store_id}/file-batches/{batch_id}/cancel")
+def cancel_vector_store_file_batch(
+    provider_type: str,
+    vector_store_id: str,
+    batch_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        return service.cancel_vector_store_file_batch(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            batch_id=batch_id,
+        )
+    except Exception as e:
+        _raise_provider_error(e)
+
+
+@router.get("/{provider_type}/vector-stores/{vector_store_id}/file-batches/{batch_id}/files")
+def list_vector_store_file_batch_files(
+    provider_type: str,
+    vector_store_id: str,
+    batch_id: str,
+    limit: int = 100,
+    after: str | None = None,
+    before: str | None = None,
+    order: str | None = None,
+    status_filter: str | None = None,
+    db: Session = Depends(get_db),
+):
+    try:
+        service = ProviderVectorStoresService(db=db)
+        items = service.list_vector_store_file_batch_files(
+            provider_type=provider_type,
+            vector_store_id=vector_store_id,
+            batch_id=batch_id,
+            limit=limit,
+            after=after,
+            before=before,
+            order=order,
+            status_filter=status_filter,
+        )
+        return {"items": items}
+    except Exception as e:
+        _raise_provider_error(e)
 
 
 @router.get("/{provider_type}/files")
@@ -184,8 +469,8 @@ def list_files(provider_type: str, limit: int = 100, db: Session = Depends(get_d
     try:
         service = ProviderVectorStoresService(db=db)
         return {"items": service.list_files(provider_type=provider_type, limit=limit)}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        _raise_provider_error(e)
 
 
 @router.get("/{provider_type}/file-uploads", response_model=ProviderFileUploadsListOut)
