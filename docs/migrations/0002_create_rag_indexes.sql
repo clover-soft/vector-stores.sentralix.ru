@@ -34,15 +34,7 @@ CREATE TABLE IF NOT EXISTS rag_index_files (
 
   PRIMARY KEY (index_id, file_id),
   INDEX ix_rag_index_files_index_id (index_id),
-  INDEX ix_rag_index_files_file_id (file_id),
-
-  CONSTRAINT fk_rag_index_files_index_id
-    FOREIGN KEY (index_id) REFERENCES rag_indexes(id)
-    ON DELETE CASCADE,
-
-  CONSTRAINT fk_rag_index_files_file_id
-    FOREIGN KEY (file_id) REFERENCES rag_files(id)
-    ON DELETE CASCADE
+  INDEX ix_rag_index_files_file_id (file_id)
 )
 ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4

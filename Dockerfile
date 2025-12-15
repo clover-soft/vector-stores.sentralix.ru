@@ -26,4 +26,4 @@ RUN pip install openai
 WORKDIR /app
 
 # Запускаем сервер
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--app-dir", "app", "--host", "0.0.0.0", "--port", "8000"]

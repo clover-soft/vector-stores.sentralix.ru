@@ -35,6 +35,9 @@
 
 ## 3. Основные сущности и данные
 
+**Правило проекта (важно):** на уровне БД **не используются** `FOREIGN KEY` (и в коде не используется `ForeignKey`).
+Связи между таблицами являются логическими (по значениям идентификаторов), а целостность данных обеспечивается сервисным слоем.
+
 ### 3.1. Таблица `rag_indexes`
 DDL (как источник истины):
 - `domain_id` — принадлежность домену.
@@ -63,7 +66,78 @@ DDL (как источник истины):
 - `index_id`, `file_id`.
 - `include_order` — порядок включения.
 
-### 3.4. Доменная изоляция
+### 3.4. Таблица `rag_provider_connections`
+DDL (как источник истины):
+- `id` — строковый идентификатор провайдера (`provider_type`), PK. Подключения глобальные (без доменной изоляции).
+- `base_url` — базовый URL API провайдера (nullable для провайдеров без URL).
+- `auth_type` — тип аутентификации (строка).
+- `credentials_enc` — зашифрованные учётные данные (JSON).
+- `token_enc` — зашифрованное состояние токенов/сессии (JSON).
+- `token_expires_at` — срок действия токена/сессии (nullable).
+- `is_enabled` — флаг активности.
+- `last_healthcheck_at` — время последней проверки доступности.
+- `last_error` — последняя диагностическая ошибка.
+- `created_at`, `updated_at`.
+
+Пример DDL (ориентир, совпадает по смыслу с перечнем полей выше):
+```sql
+CREATE TABLE rag_provider_connections (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  base_url VARCHAR(1024) NULL,
+  auth_type VARCHAR(32) NOT NULL,
+  credentials_enc JSON NULL,
+  token_enc JSON NULL,
+  token_expires_at DATETIME NULL,
+  is_enabled BOOLEAN NOT NULL DEFAULT 1,
+  last_healthcheck_at DATETIME NULL,
+  last_error TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+Инварианты:
+- Подключения глобальные: `domain_id` в этой таблице отсутствует.
+- `id` равен `provider_type`.
+- В сервисе запрещено выполнять провайдерные операции при `is_enabled = 0`.
+
+### 3.5. Таблица `rag_provider_file_uploads`
+DDL (как источник истины):
+- `id` — UUID, PK.
+- `provider_id` — строковый идентификатор провайдера (логическая ссылка на `rag_provider_connections.id`).
+- `local_file_id` — идентификатор локального файла (логическая ссылка на `rag_files.id`).
+- `external_file_id` — идентификатор файла у провайдера.
+- `external_uploaded_at` — время загрузки у провайдера.
+- `content_sha256` — контрольная сумма содержимого, по которой можно определять необходимость повторной загрузки.
+- `status` — строковый статус (`pending | uploaded | failed | deleted` и т.п.).
+- `last_error` — последняя диагностическая ошибка.
+- `raw_provider_json` — сырой ответ/метаданные провайдера (JSON).
+- `created_at`, `updated_at`.
+
+Пример DDL (ориентир):
+```sql
+CREATE TABLE rag_provider_file_uploads (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  provider_id VARCHAR(64) NOT NULL,
+  local_file_id CHAR(36) NOT NULL,
+  external_file_id VARCHAR(255) NULL,
+  external_uploaded_at DATETIME NULL,
+  content_sha256 CHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  last_error TEXT NULL,
+  raw_provider_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT uq_rpfu_provider_file UNIQUE (provider_id, local_file_id)
+);
+```
+
+Инварианты:
+- Для пары `(provider_id, local_file_id)` должна существовать максимум одна актуальная запись.
+- `content_sha256` фиксирует содержимое локального файла на момент синхронизации.
+- `status` — строковый, без enum на уровне БД.
+
+### 3.6. Доменная изоляция
 **Ключевой принцип:** любые операции (файлы, индексы, связи) выполняются строго в рамках `domain_id`.
 - Все запросы к API должны содержать `domain_id` (предпочтительно в заголовке, например `X-Domain-Id`, либо в URL/теле; вариант должен быть единым для всех ручек).
 - Любые выборки из БД фильтруются по `domain_id`.
@@ -152,13 +226,7 @@ DDL (как источник истины):
 - `ALLOW_HOSTS` — список разрешённых хостов/адресов (если используется middleware).
 
 Провайдеры:
-- Yandex:
-  - `YC_FOLDER_ID`
-  - `YC_SA_KEY_JSON_B64`
-- OpenAI:
-  - `OPENAI_API_KEY` (и прочие параметры при необходимости)
-- Sentralix:
-  - параметры локального движка (уточняются).
+- `PROVIDER_SECRETS_KEY` — ключ шифрования для секретов и токенов, хранимых в БД (`rag_provider_connections.credentials_enc`, `rag_provider_connections.token_enc`).
 
 ---
 
@@ -234,8 +302,37 @@ DDL (как источник истины):
   - список файлов, включённых в индекс
 
 ### 8.5. Провайдерные операции (проверка состояния)
-- `GET /providers/{provider_type}/indexes`
-  - проверка текущих индексов в провайдере (внешний список)
+- Провайдеры выбираются по строковому `provider_type` (без enum).
+- Базовый набор админ-ручек мониторинга (без доменной изоляции, отдельный Swagger-раздел):
+  - `GET /admin/providers/connections`
+  - `GET /admin/providers/connections/{provider_type}`
+  - `POST /admin/providers/connections/{provider_type}`
+  - `PATCH /admin/providers/connections/{provider_type}`
+  - `DELETE /admin/providers/connections/{provider_type}`
+  - `GET /admin/providers/{provider_type}/health`
+  - `GET /admin/providers/{provider_type}/vector-stores`
+  - `GET /admin/providers/{provider_type}/files`
+  - CRUD для `rag_provider_file_uploads` в админ-разделе (плюс автосоздание записи при upload файла в провайдер).
+
+Логика (обязательные сценарии):
+- Подключения (`rag_provider_connections`):
+  - `POST/PATCH /admin/providers/connections/{provider_type}` сохраняет конфигурацию провайдера в БД.
+  - Секреты и токены хранятся в полях `credentials_enc`/`token_enc` в зашифрованном виде.
+  - `GET /admin/providers/{provider_type}/health`:
+    - читает подключение из БД,
+    - пытается создать клиента провайдера,
+    - делает «лёгкий» запрос (например list) или проверку токена,
+    - записывает `last_healthcheck_at`, при ошибке — `last_error`.
+- Upload локального файла в провайдера (`rag_provider_file_uploads`):
+  - При любой операции, требующей `external_file_id`, сервис сначала обеспечивает наличие/актуальность `rag_provider_file_uploads`.
+  - Алгоритм идемпотентности:
+    - вычислить `sha256` локального файла,
+    - выполнить upsert записи по `(provider_id, local_file_id)`:
+      - если записи нет: создать со `status=pending`, `content_sha256=<sha>`,
+      - если запись есть и `status=uploaded` и `content_sha256` совпадает: повторную загрузку не выполнять,
+      - если `content_sha256` изменился: обновить `content_sha256`, поставить `status=pending` и выполнить повторную загрузку.
+    - после успешной загрузки заполнить `external_file_id`, `external_uploaded_at`, `status=uploaded`, `raw_provider_json`.
+    - при ошибке заполнить `status=failed`, `last_error`.
 
 ---
 
@@ -245,14 +342,24 @@ DDL (как источник истины):
 Интеграции провайдеров должны иметь единый контракт, реализованный как базовый класс/интерфейс (например `BaseRagProvider`).
 
 ### 9.2. Минимальные методы контракта (ориентир)
-- `list_indexes(domain_id: str) -> list[ProviderIndex]`
-- `create_index(index_payload) -> ProviderCreatedIndex` (возвращает `external_id`)
-- `delete_index(external_id: str) -> None`
-- `get_index(external_id: str) -> ProviderIndex`
-- `upload_file(domain_id: str, local_path: str, meta) -> ProviderFile` (если у провайдера требуется отдельная загрузка)
-- `attach_file_to_index(external_index_id: str, external_file_id: str | None, local_path: str, meta) -> None`
-- `start_indexing(external_index_id: str) -> ProviderIndexingRun`
-- `get_indexing_status(external_index_id: str) -> ProviderIndexingStatus`
+- Vector stores:
+  - `create_vector_store(payload) -> ProviderVectorStore`
+  - `list_vector_stores(...) -> list[ProviderVectorStore]`
+  - `retrieve_vector_store(external_id: str) -> ProviderVectorStore`
+  - `modify_vector_store(external_id: str, payload) -> ProviderVectorStore`
+  - `delete_vector_store(external_id: str) -> None`
+  - `search_vector_store(external_id: str, query_payload) -> ProviderVectorStoreSearchResult`
+- Files:
+  - `create_file(local_path: str, meta) -> ProviderFile`
+  - `list_files(...) -> list[ProviderFile]`
+  - `retrieve_file(external_file_id: str) -> ProviderFile`
+  - `retrieve_file_content(external_file_id: str) -> bytes | str`
+  - `update_file(external_file_id: str, payload) -> ProviderFile`
+  - `delete_file(external_file_id: str) -> None`
+- Vector store ↔ files:
+  - `attach_file_to_vector_store(external_vector_store_id: str, external_file_id: str) -> ProviderVectorStoreFileBinding`
+  - `detach_file_from_vector_store(external_vector_store_id: str, external_file_id: str) -> None`
+  - `list_vector_store_files(external_vector_store_id: str) -> list[ProviderVectorStoreFileBinding]`
 
 Примечание: конкретная реализация зависит от возможностей провайдера. Если провайдер не поддерживает отдельную «загрузку файла», допускается схема, когда файл прикрепляется напрямую из `local_path`.
 
@@ -359,11 +466,14 @@ DDL (как источник истины):
   - создать базовый контракт провайдера;
   - реализовать фасады `yandex`, `openai`, `sentralix`;
   - сервис-роутер провайдеров (выбор по `provider_type`);
-  - ручка `GET /providers/{provider_type}/indexes`.
+  - хранение конфигураций/секретов провайдеров в БД (`rag_provider_connections`, шифрование ключом из env);
+  - учёт загрузок файлов в провайдера (`rag_provider_file_uploads`, CRUD и автосоздание при upload);
+  - админ-ручки мониторинга провайдеров (Swagger-раздел для админки).
 - **Ожидаемый результат:** сервис умеет ходить в провайдера и возвращать список индексов.
 - **Definition of Done:**
   - единый контракт реализован всеми провайдерами;
-  - конфиг провайдеров только через env;
+  - провайдер выбирается по строковому `provider_type`;
+  - конфиг провайдеров хранится в БД, секреты и токены зашифрованы;
   - ошибки провайдера корректно обрабатываются и логируются.
 
 ### Этап 5: Отложенная индексация (полный цикл)

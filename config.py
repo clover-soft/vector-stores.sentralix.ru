@@ -37,6 +37,8 @@ class Config:
         self.yc_folder_id: str | None = os.getenv("YC_FOLDER_ID")
         self.yc_sa_key_json_b64: str | None = os.getenv("YC_SA_KEY_JSON_B64")
 
+        self.provider_secrets_key: str | None = os.getenv("PROVIDER_SECRETS_KEY")
+
 
 _config: Config | None = None
 

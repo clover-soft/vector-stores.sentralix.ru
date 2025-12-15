@@ -73,12 +73,16 @@ def init_db() -> None:
         import models.rag_file
         import models.rag_index
         import models.rag_index_file
+        import models.rag_provider_connection
+        import models.rag_provider_file_upload
     except ModuleNotFoundError:
         return
 
     _ = models.rag_file.RagFile
     _ = models.rag_index.RagIndex
     _ = models.rag_index_file.RagIndexFile
+    _ = models.rag_provider_connection.RagProviderConnection
+    _ = models.rag_provider_file_upload.RagProviderFileUpload
 
     engine = get_engine()
     try:
