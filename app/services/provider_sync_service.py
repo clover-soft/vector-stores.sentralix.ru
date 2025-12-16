@@ -172,9 +172,11 @@ class ProviderSyncService:
             for pos, item in enumerate(items, start=1):
                 vector_store_file_id = item.get("id")
                 external_file_id = item.get("file_id")
+                vector_store_file_meta: dict | None = None
                 if not external_file_id and vector_store_file_id:
                     try:
                         vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
+                        vector_store_file_meta = vs_file if isinstance(vs_file, dict) else None
                         external_file_id = vs_file.get("file_id") or vs_file.get("id")
                     except Exception:
                         external_file_id = None
@@ -194,14 +196,22 @@ class ProviderSyncService:
                         .one_or_none()
                     )
 
-                    provider_bytes = provider.retrieve_file_content(external_file_id)
+                    try:
+                        provider_bytes = provider.retrieve_file_content(external_file_id)
+                    except Exception as e:
+                        vs_file_id_for_content = str(vector_store_file_id or external_file_id)
+                        try:
+                            content_items = provider.retrieve_vector_store_file_content(vs_id, vs_file_id_for_content)
+                            provider_bytes = self._vector_store_file_content_to_bytes(content_items)
+                        except Exception:
+                            raise e
                     provider_sha256 = self._calc_sha256_bytes(provider_bytes)
 
                     provider_meta: dict | None = None
                     try:
                         provider_meta = provider.retrieve_file(external_file_id)
                     except Exception:
-                        provider_meta = None
+                        provider_meta = vector_store_file_meta
 
                     if rag_file is None:
                         file_name = self._provider_file_name(external_file_id=external_file_id, provider_meta=provider_meta)
@@ -335,6 +345,38 @@ class ProviderSyncService:
                     )
 
         return report
+
+    def _vector_store_file_content_to_bytes(self, items: list[dict] | None) -> bytes:
+        if not items:
+            raise ValueError("Провайдер вернул пустой контент файла")
+
+        parts: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            text = item.get("text")
+            if isinstance(text, str) and text:
+                parts.append(text)
+                continue
+            if isinstance(text, dict) and isinstance(text.get("value"), str) and text.get("value"):
+                parts.append(text["value"])
+                continue
+
+            content = item.get("content")
+            if isinstance(content, str) and content:
+                parts.append(content)
+                continue
+
+            data = item.get("data")
+            if isinstance(data, str) and data:
+                parts.append(data)
+                continue
+
+        if parts:
+            return "\n".join(parts).encode("utf-8")
+
+        return str(items).encode("utf-8")
 
     def _make_local_file_path(self, *, domain_id: str, local_file_id: str, file_name: str) -> Path:
         safe_name = Path(file_name).name
