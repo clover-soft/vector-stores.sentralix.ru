@@ -170,8 +170,19 @@ class ProviderSyncService:
                 continue
 
             for pos, item in enumerate(items, start=1):
-                external_file_id = item.get("file_id") or item.get("id")
+                vector_store_file_id = item.get("id")
+                external_file_id = item.get("file_id")
+                if not external_file_id and vector_store_file_id:
+                    try:
+                        vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
+                        external_file_id = vs_file.get("file_id") or vs_file.get("id")
+                    except Exception:
+                        external_file_id = None
+
                 if not external_file_id:
+                    report["errors"].append(
+                        f"vector_store={vs_id}: не удалось определить внешний file_id для элемента списка (id={vector_store_file_id})"
+                    )
                     continue
                 external_file_id = str(external_file_id)
 
@@ -319,7 +330,9 @@ class ProviderSyncService:
                     )
 
                 except Exception as e:
-                    report["errors"].append(f"vector_store={vs_id} file_id={external_file_id}: ошибка синхронизации файла: {e}")
+                    report["errors"].append(
+                        f"vector_store={vs_id} external_file_id={external_file_id}: ошибка синхронизации файла: {e}"
+                    )
 
         return report
 
