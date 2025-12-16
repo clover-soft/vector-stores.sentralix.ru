@@ -171,13 +171,13 @@ class ProviderSyncService:
 
             for pos, item in enumerate(items, start=1):
                 vector_store_file_id = item.get("id")
-                external_file_id = item.get("file_id")
+                external_file_id = self._extract_external_file_id(item)
                 vector_store_file_meta: dict | None = None
                 if not external_file_id and vector_store_file_id:
                     try:
                         vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
                         vector_store_file_meta = vs_file if isinstance(vs_file, dict) else None
-                        external_file_id = vs_file.get("file_id") or vs_file.get("id")
+                        external_file_id = self._extract_external_file_id(vs_file)
                     except Exception:
                         external_file_id = None
 
@@ -196,15 +196,32 @@ class ProviderSyncService:
                         .one_or_none()
                     )
 
+                    provider_bytes: bytes | None = None
+                    files_api_error: Exception | None = None
                     try:
                         provider_bytes = provider.retrieve_file_content(external_file_id)
                     except Exception as e:
-                        vs_file_id_for_content = str(vector_store_file_id or external_file_id)
-                        try:
-                            content_items = provider.retrieve_vector_store_file_content(vs_id, vs_file_id_for_content)
-                            provider_bytes = self._vector_store_file_content_to_bytes(content_items)
-                        except Exception:
-                            raise e
+                        files_api_error = e
+
+                    if provider_bytes is None:
+                        tried_ids: list[str] = []
+                        if vector_store_file_id:
+                            tried_ids.append(str(vector_store_file_id))
+                        if external_file_id and str(external_file_id) not in tried_ids:
+                            tried_ids.append(str(external_file_id))
+
+                        last_error: Exception | None = None
+                        for vs_file_id_for_content in tried_ids:
+                            try:
+                                content_items = provider.retrieve_vector_store_file_content(vs_id, vs_file_id_for_content)
+                                provider_bytes = self._vector_store_file_content_to_bytes(content_items)
+                                last_error = None
+                                break
+                            except Exception as e:
+                                last_error = e
+
+                        if provider_bytes is None:
+                            raise last_error or files_api_error or ValueError("Не удалось получить контент файла")
                     provider_sha256 = self._calc_sha256_bytes(provider_bytes)
 
                     provider_meta: dict | None = None
@@ -345,6 +362,24 @@ class ProviderSyncService:
                     )
 
         return report
+
+    def _extract_external_file_id(self, obj: dict | None) -> str | None:
+        if not obj or not isinstance(obj, dict):
+            return None
+
+        val = obj.get("file_id")
+        if isinstance(val, str) and val:
+            return val
+
+        file_obj = obj.get("file")
+        if isinstance(file_obj, str) and file_obj:
+            return file_obj
+        if isinstance(file_obj, dict):
+            file_id = file_obj.get("id")
+            if isinstance(file_id, str) and file_id:
+                return file_id
+
+        return None
 
     def _vector_store_file_content_to_bytes(self, items: list[dict] | None) -> bytes:
         if not items:

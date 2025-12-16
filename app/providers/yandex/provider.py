@@ -273,11 +273,11 @@ class YandexProvider(BaseProvider):
         return self._dump_page(page)
 
     def retrieve_file(self, file_id: str) -> dict[str, Any]:
-        item = self._client.files.retrieve(file_id)
+        item = self._client.files.retrieve(file_id, extra_headers={"OpenAI-Beta": "assistants=v2"})
         return self._dump(item)
 
     def retrieve_file_content(self, file_id: str) -> bytes:
-        resp = self._client.files.content(file_id)
+        resp = self._client.files.content(file_id, extra_headers={"OpenAI-Beta": "assistants=v2"})
         if isinstance(resp, (bytes, bytearray)):
             return bytes(resp)
         if hasattr(resp, "read"):
