@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 import hashlib
+import json
+import logging
 import mimetypes
 from pathlib import Path
 from uuid import uuid4
@@ -20,10 +22,84 @@ _DEFAULT_LIST_LIMIT = 1000
 _CHUNK_SIZE_BYTES = 1024 * 1024
 
 
+logger = logging.getLogger(__name__)
+
+
 class ProviderSyncService:
     def __init__(self, db: Session) -> None:
         self._db = db
         self._config = get_config()
+
+    def _dump_payload(self, payload: object) -> str:
+        try:
+            return json.dumps(payload, ensure_ascii=False, default=str)
+        except Exception:
+            return str(payload)
+
+    def _redact_headers(self, headers: dict | None) -> dict:
+        if not headers:
+            return {}
+
+        redacted: dict = {}
+        for k, v in headers.items():
+            key = str(k)
+            low = key.lower()
+            if low in {"authorization", "proxy-authorization", "x-api-key", "api-key"}:
+                redacted[key] = "***"
+            else:
+                redacted[key] = v
+        return redacted
+
+    def _log_http_error(self, *, event: str, provider_type: str, payload: dict, error: Exception) -> None:
+        req = getattr(error, "request", None)
+        resp = getattr(error, "response", None)
+
+        req_info: dict[str, object] | None = None
+        if req is not None:
+            req_info = {
+                "method": getattr(req, "method", None),
+                "url": str(getattr(req, "url", "")),
+                "headers": self._redact_headers(dict(getattr(req, "headers", {}) or {})),
+                "body": None,
+            }
+            try:
+                body = getattr(req, "content", None)
+                if body:
+                    req_info["body"] = body.decode("utf-8", errors="replace") if isinstance(body, (bytes, bytearray)) else str(body)
+            except Exception:
+                req_info["body"] = None
+
+        resp_info: dict[str, object] | None = None
+        if resp is not None:
+            resp_info = {
+                "status_code": getattr(resp, "status_code", None),
+                "headers": self._redact_headers(dict(getattr(resp, "headers", {}) or {})),
+                "body": None,
+            }
+            try:
+                body_text = getattr(resp, "text", None)
+                if body_text:
+                    resp_info["body"] = body_text
+                else:
+                    body_bytes = getattr(resp, "content", None)
+                    if body_bytes:
+                        resp_info["body"] = (
+                            body_bytes.decode("utf-8", errors="replace")
+                            if isinstance(body_bytes, (bytes, bytearray))
+                            else str(body_bytes)
+                        )
+            except Exception:
+                resp_info["body"] = None
+
+        logger.warning(
+            "provider_sync http_error event=%s provider=%s payload=%s request=%s response=%s error=%s",
+            event,
+            provider_type,
+            self._dump_payload(payload),
+            self._dump_payload(req_info) if req_info is not None else None,
+            self._dump_payload(resp_info) if resp_info is not None else None,
+            repr(error),
+        )
 
     def sync(self, provider_type: str) -> dict:
         domain_id = self._config.default_domain_id
@@ -176,12 +252,25 @@ class ProviderSyncService:
                 if vector_store_file_id and (not external_file_id or "file_id" not in item):
                     try:
                         vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
+                        logger.info(
+                            "provider_sync retrieve_vector_store_file provider=%s vector_store_id=%s vector_store_file_id=%s payload=%s",
+                            provider_type,
+                            vs_id,
+                            str(vector_store_file_id),
+                            self._dump_payload(vs_file),
+                        )
                         vector_store_file_meta = vs_file if isinstance(vs_file, dict) else None
                         extracted = self._extract_external_file_id(vs_file)
                         if extracted:
                             external_file_id = extracted
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(
+                            "provider_sync retrieve_vector_store_file_failed provider=%s vector_store_id=%s vector_store_file_id=%s error=%s",
+                            provider_type,
+                            vs_id,
+                            str(vector_store_file_id),
+                            repr(e),
+                        )
 
                 if not external_file_id:
                     report["errors"].append(
@@ -219,6 +308,17 @@ class ProviderSyncService:
                         provider_bytes = provider.retrieve_file_content(external_file_id)
                     except Exception as e:
                         files_api_error = e
+                        self._log_http_error(
+                            event="retrieve_file_content",
+                            provider_type=provider_type,
+                            payload={
+                                "external_file_id": external_file_id,
+                                "vector_store_id": vs_id,
+                                "vector_store_file_id": vector_store_file_id,
+                                "request_body": None,
+                            },
+                            error=e,
+                        )
 
                     if provider_bytes is None:
                         tried_ids: list[str] = []
@@ -236,6 +336,16 @@ class ProviderSyncService:
                                 break
                             except Exception as e:
                                 last_error = e
+                                self._log_http_error(
+                                    event="retrieve_vector_store_file_content",
+                                    provider_type=provider_type,
+                                    payload={
+                                        "vector_store_id": vs_id,
+                                        "vector_store_file_id": vs_file_id_for_content,
+                                        "request_body": None,
+                                    },
+                                    error=e,
+                                )
 
                         if provider_bytes is None:
                             raise last_error or files_api_error or ValueError("Не удалось получить контент файла")
