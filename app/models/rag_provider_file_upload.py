@@ -12,6 +12,11 @@ class RagProviderFileUpload(Base):
     __tablename__ = "rag_provider_file_uploads"
     __table_args__ = (
         UniqueConstraint("provider_id", "local_file_id", name="uq_rag_provider_file_uploads_provider_file"),
+        UniqueConstraint(
+            "provider_id",
+            "external_file_id",
+            name="uq_rag_provider_file_uploads_provider_external_file",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

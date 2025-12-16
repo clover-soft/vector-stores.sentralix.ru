@@ -173,13 +173,15 @@ class ProviderSyncService:
                 vector_store_file_id = item.get("id")
                 external_file_id = self._extract_external_file_id(item)
                 vector_store_file_meta: dict | None = None
-                if not external_file_id and vector_store_file_id:
+                if vector_store_file_id and (not external_file_id or "file_id" not in item):
                     try:
                         vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
                         vector_store_file_meta = vs_file if isinstance(vs_file, dict) else None
-                        external_file_id = self._extract_external_file_id(vs_file)
+                        extracted = self._extract_external_file_id(vs_file)
+                        if extracted:
+                            external_file_id = extracted
                     except Exception:
-                        external_file_id = None
+                        pass
 
                 if not external_file_id:
                     report["errors"].append(
@@ -189,12 +191,27 @@ class ProviderSyncService:
                 external_file_id = str(external_file_id)
 
                 try:
-                    rag_file = (
-                        self._db.query(RagFile)
-                        .filter(RagFile.domain_id == domain_id)
-                        .filter(RagFile.external_file_id == external_file_id)
-                        .one_or_none()
+                    uploads = (
+                        self._db.query(RagProviderFileUpload)
+                        .filter(RagProviderFileUpload.provider_id == provider_type)
+                        .filter(RagProviderFileUpload.external_file_id == external_file_id)
+                        .order_by(RagProviderFileUpload.created_at.desc())
+                        .all()
                     )
+                    upload = uploads[0] if uploads else None
+                    if len(uploads) > 1:
+                        report["errors"].append(
+                            f"vector_store={vs_id} external_file_id={external_file_id}: найдено несколько записей rag_provider_file_uploads (count={len(uploads)})"
+                        )
+
+                    rag_file: RagFile | None = None
+                    if upload is not None:
+                        rag_file = self._db.query(RagFile).filter(RagFile.id == upload.local_file_id).one_or_none()
+                        if rag_file is not None and rag_file.domain_id != domain_id:
+                            report["errors"].append(
+                                f"vector_store={vs_id} external_file_id={external_file_id}: найден локальный файл в другом домене (file_id={rag_file.id}, domain_id={rag_file.domain_id})"
+                            )
+                            continue
 
                     provider_bytes: bytes | None = None
                     files_api_error: Exception | None = None
@@ -242,8 +259,6 @@ class ProviderSyncService:
                         )
                         self._write_bytes(local_path, provider_bytes)
 
-                        external_uploaded_at = self._provider_uploaded_at(provider_meta)
-
                         rag_file = RagFile(
                             id=new_local_file_id,
                             domain_id=domain_id,
@@ -251,8 +266,6 @@ class ProviderSyncService:
                             file_type=file_type,
                             local_path=str(local_path),
                             size_bytes=len(provider_bytes),
-                            external_file_id=external_file_id,
-                            external_uploaded_at=external_uploaded_at,
                             chunking_strategy=None,
                             tags=None,
                             notes=None,
@@ -263,6 +276,10 @@ class ProviderSyncService:
                         report["files_created"] += 1
                         action = "created"
                         local_sha256 = provider_sha256
+
+                        if upload is not None and upload.local_file_id != rag_file.id:
+                            upload.local_file_id = rag_file.id
+                            self._db.commit()
                     else:
                         report["files_kept"] += 1
                         action = "kept"
@@ -298,13 +315,6 @@ class ProviderSyncService:
                         if link.include_order != pos:
                             link.include_order = pos
                             self._db.commit()
-
-                    upload = (
-                        self._db.query(RagProviderFileUpload)
-                        .filter(RagProviderFileUpload.provider_id == provider_type)
-                        .filter(RagProviderFileUpload.local_file_id == rag_file.id)
-                        .one_or_none()
-                    )
 
                     if upload is None:
                         upload = RagProviderFileUpload(
@@ -379,6 +389,18 @@ class ProviderSyncService:
             if isinstance(file_id, str) and file_id:
                 return file_id
 
+            file_id = file_obj.get("file_id")
+            if isinstance(file_id, str) and file_id:
+                return file_id
+
+            file_id = file_obj.get("fileId")
+            if isinstance(file_id, str) and file_id:
+                return file_id
+
+        val = obj.get("id")
+        if isinstance(val, str) and val:
+            return val
+
         return None
 
     def _vector_store_file_content_to_bytes(self, items: list[dict] | None) -> bytes:
@@ -439,6 +461,12 @@ class ProviderSyncService:
     def _provider_file_name(self, *, external_file_id: str, provider_meta: dict | None) -> str:
         if provider_meta and isinstance(provider_meta.get("filename"), str) and provider_meta.get("filename"):
             return Path(provider_meta["filename"]).name
+        if provider_meta and isinstance(provider_meta.get("file"), dict):
+            f = provider_meta["file"]
+            if isinstance(f.get("filename"), str) and f.get("filename"):
+                return Path(f["filename"]).name
+            if isinstance(f.get("name"), str) and f.get("name"):
+                return Path(f["name"]).name
         return external_file_id
 
     def _guess_file_type(self, file_name: str) -> str:

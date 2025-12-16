@@ -73,12 +73,13 @@
   - Для каждого элемента (минимально содержит `file_id`):
 
     Важно:
-    - `file_id` (внешний идентификатор файла у провайдера) сохраняется в `RagFile.external_file_id`.
-    - `RagFile.id` — это **локальный** UUID в нашей БД и не должен трактоваться как внешний идентификатор.
+    - `file_id` (внешний идентификатор файла у провайдера) сохраняется в `RagProviderFileUpload.external_file_id`.
+    - `RagFile.id` — это **локальный** UUID в нашей БД.
 
     **6.1) Обеспечить наличие локального RagFile**
-    - Поискать локальный файл по внешнему id:
-      - `RagFile.external_file_id == file_id`.
+    - Поискать запись загрузки (маппинг) в `rag_provider_file_uploads`:
+      - `RagProviderFileUpload.provider_id == provider_type` AND `RagProviderFileUpload.external_file_id == file_id`.
+    - Если запись найдена — получить `RagFile` по `RagProviderFileUpload.local_file_id`.
     - Если найден:
       - локальный файл **не изменять** (не перезаписывать байты, даже если отличаются от провайдера)
       - посчитать `sha256` локального файла и `sha256` файла у провайдера
@@ -93,8 +94,6 @@
         - `id = uuid4()`
         - `domain_id = DEFAULT_DOMAIN_ID`
         - `local_path = <путь сохранения>`
-        - `external_file_id = file_id`
-        - `external_uploaded_at` (если доступно)
 
     **6.2) Обеспечить наличие связи RagIndexFile**
     - Найти `RagIndex` по `provider_type` и `external_id == vs_id`.

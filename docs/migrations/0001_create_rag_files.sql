@@ -7,9 +7,6 @@ CREATE TABLE IF NOT EXISTS rag_files (
   local_path VARCHAR(1024) NOT NULL,
   size_bytes BIGINT NOT NULL,
 
-  external_file_id VARCHAR(256) NULL,
-  external_uploaded_at DATETIME NULL,
-
   chunking_strategy JSON NULL,
 
   tags JSON NULL,

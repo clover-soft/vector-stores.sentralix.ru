@@ -55,7 +55,7 @@ DDL (как источник истины):
 ### 3.2. Таблица `rag_files`
 DDL (как источник истины):
 - `file_name`, `file_type`, `local_path`, `size_bytes`.
-- `external_file_id`, `external_uploaded_at` — при наличии загрузки в провайдера.
+- Внешние идентификаторы и даты загрузки в провайдера фиксируются **только** в таблице `rag_provider_file_uploads`.
 - `chunking_strategy` — стратегия чанкинга (OpenAI). Если не задана, используется `auto`.
 - `domain_id`.
 - `tags` — JSON.
@@ -128,12 +128,14 @@ CREATE TABLE rag_provider_file_uploads (
   raw_provider_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT uq_rpfu_provider_file UNIQUE (provider_id, local_file_id)
+  CONSTRAINT uq_rpfu_provider_file UNIQUE (provider_id, local_file_id),
+  CONSTRAINT uq_rpfu_provider_external_file UNIQUE (provider_id, external_file_id)
 );
 ```
 
 Инварианты:
 - Для пары `(provider_id, local_file_id)` должна существовать максимум одна актуальная запись.
+- Для пары `(provider_id, external_file_id)` должна существовать максимум одна актуальная запись.
 - `content_sha256` фиксирует содержимое локального файла на момент синхронизации.
 - `status` — строковый, без enum на уровне БД.
 

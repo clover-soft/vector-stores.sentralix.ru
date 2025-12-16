@@ -37,3 +37,12 @@
   - Расширен контракт провайдера (`BaseProvider`) методами Files API: `retrieve_file`, `retrieve_file_content`.
   - Реализован сервис `ProviderSyncService` и админ-эндпоинт `POST /api/v1/admin/providers/{provider_type}/sync`.
   - Добавлен отчёт синхронизации по файлам, включая список несоответствий по байтам (SHA256) без перезаписи локальных файлов.
+
+### 2025-12-16: Внешние идентификаторы файлов только в `rag_provider_file_uploads`
+
+- Цель: убрать дублирование и смешение ответственности между `rag_files` и `rag_provider_file_uploads`.
+- Изменения:
+  - Из `rag_files` убраны поля `external_file_id`, `external_uploaded_at` (внешние данные хранятся только в `rag_provider_file_uploads`).
+  - Обновлены Pydantic-схемы файлов: `FileOut` больше не возвращает `external_file_id`/`external_uploaded_at`.
+  - Синхронизация провайдера переведена на сопоставление через `rag_provider_file_uploads` по `(provider_id, external_file_id)`.
+  - Добавлена миграция `docs/migrations/0007_update_rag_files_remove_external_provider_fields.sql`.

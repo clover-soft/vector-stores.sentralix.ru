@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS rag_provider_file_uploads (
 
   PRIMARY KEY (id),
   UNIQUE KEY uq_rag_provider_file_uploads_provider_file (provider_id, local_file_id),
+  UNIQUE KEY uq_rag_provider_file_uploads_provider_external_file (provider_id, external_file_id),
   INDEX ix_rag_provider_file_uploads_provider_id (provider_id),
   INDEX ix_rag_provider_file_uploads_local_file_id (local_file_id)
 )

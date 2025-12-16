@@ -19,9 +19,6 @@ class RagFile(Base):
     local_path: Mapped[str] = mapped_column(String(1024))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
 
-    external_file_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    external_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
     chunking_strategy: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     tags: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)

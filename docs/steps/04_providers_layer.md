@@ -12,6 +12,7 @@
    - Добавить учёт загрузок локальных файлов в провайдера:
      - Таблица `rag_provider_file_uploads` (CRUD нужен).
      - Запись в `rag_provider_file_uploads` автоматически создаётся при загрузке файла в провайдера.
+     - Внешние идентификаторы и даты загрузки файлов в провайдера фиксируются в `rag_provider_file_uploads`.
    - Добавить общий контракт провайдера (интерфейс/базовый класс), который реализуют все провайдеры, с методами в стиле OpenAI:
      - Vector stores: `create/list/retrieve/modify/delete/search`.
      - Files: `create/list/retrieve/retrieve_content/update/delete`.

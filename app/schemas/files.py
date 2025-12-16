@@ -17,9 +17,6 @@ class FileOut(BaseModel):
     tags: dict | list | None = None
     notes: str | None = None
 
-    external_file_id: str | None = None
-    external_uploaded_at: datetime | None = None
-
     chunking_strategy: dict | None = None
 
     created_at: datetime
