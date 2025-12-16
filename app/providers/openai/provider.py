@@ -250,6 +250,30 @@ class OpenAIProvider(BaseProvider):
         page = self._client.files.list(limit=limit)
         return self._dump_page(page)
 
+    def retrieve_file(self, file_id: str) -> dict[str, Any]:
+        item = self._client.files.retrieve(file_id)
+        return self._dump(item)
+
+    def retrieve_file_content(self, file_id: str) -> bytes:
+        resp = self._client.files.content(file_id)
+        if isinstance(resp, (bytes, bytearray)):
+            return bytes(resp)
+        if hasattr(resp, "read"):
+            data = resp.read()
+            if isinstance(data, str):
+                return data.encode("utf-8")
+            if isinstance(data, (bytes, bytearray)):
+                return bytes(data)
+        if hasattr(resp, "content"):
+            data = getattr(resp, "content")
+            if isinstance(data, str):
+                return data.encode("utf-8")
+            if isinstance(data, (bytes, bytearray)):
+                return bytes(data)
+        if isinstance(resp, str):
+            return resp.encode("utf-8")
+        raise ValueError("Не удалось прочитать контент файла от провайдера")
+
     def create_file(self, local_path: str, meta: dict | None = None) -> dict[str, Any]:
         with open(local_path, "rb") as f:
             created = self._client.files.create(file=f, purpose="assistants")

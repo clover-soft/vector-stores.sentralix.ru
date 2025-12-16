@@ -28,3 +28,12 @@
 - Изменения:
   - Убраны FK-ограничения из миграций `docs/migrations/0002_create_rag_indexes.sql` и `docs/migrations/0006_create_rag_provider_file_uploads.sql`.
   - Убраны `ForeignKey(...)` из моделей `app/models/rag_index_file.py` и `app/models/rag_provider_file_upload.py`.
+
+### 2025-12-16: Синхронизация данных провайдера (vector stores + files) с локальной БД
+
+- Цель: добавить админ-механизм синхронизации баз знаний и файлов провайдера с локальными таблицами (`rag_indexes`, `rag_files`, `rag_index_files`, `rag_provider_file_uploads`).
+- Изменения:
+  - Добавлена переменная окружения `DEFAULT_DOMAIN_ID` (домен по умолчанию для сущностей, создаваемых при синхронизации).
+  - Расширен контракт провайдера (`BaseProvider`) методами Files API: `retrieve_file`, `retrieve_file_content`.
+  - Реализован сервис `ProviderSyncService` и админ-эндпоинт `POST /api/v1/admin/providers/{provider_type}/sync`.
+  - Добавлен отчёт синхронизации по файлам, включая список несоответствий по байтам (SHA256) без перезаписи локальных файлов.

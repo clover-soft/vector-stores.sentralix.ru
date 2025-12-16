@@ -27,6 +27,7 @@ from schemas.admin_providers import (
     VectorStoreUpdateIn,
 )
 from services.provider_file_uploads_service import ProviderFileUploadsService
+from services.provider_sync_service import ProviderSyncService
 from services.provider_vector_stores_service import ProviderVectorStoresService
 from services.providers_connections_service import ProvidersConnectionsService
 from utils.crypto import encrypt_json
@@ -50,6 +51,15 @@ def encrypt_provider_credentials(payload: ProviderCredentialsEncryptIn):
 
     credentials_enc = encrypt_json(payload.credentials, config.provider_secrets_key)
     return ProviderCredentialsEncryptOut(credentials_enc=credentials_enc)
+
+
+@router.post("/{provider_type}/sync")
+def sync_provider_data(provider_type: str, db: Session = Depends(get_db)):
+    try:
+        service = ProviderSyncService(db=db)
+        return service.sync(provider_type=provider_type)
+    except Exception as e:
+        _raise_provider_error(e)
 
 
 @router.get("/connections", response_model=ProviderConnectionsListOut)

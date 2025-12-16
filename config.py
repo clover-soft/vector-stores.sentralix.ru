@@ -34,6 +34,8 @@ class Config:
 
         self.files_root: str = os.getenv("FILES_ROOT", "/files")
 
+        self.default_domain_id: str = os.getenv("DEFAULT_DOMAIN_ID", "0")
+
         self.yc_folder_id: str | None = os.getenv("YC_FOLDER_ID")
         self.yc_sa_key_json_b64: str | None = os.getenv("YC_SA_KEY_JSON_B64")
 

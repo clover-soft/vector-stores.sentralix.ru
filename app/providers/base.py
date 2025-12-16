@@ -143,5 +143,13 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def retrieve_file(self, file_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def retrieve_file_content(self, file_id: str) -> bytes:
+        raise NotImplementedError
+
+    @abstractmethod
     def create_file(self, local_path: str, meta: dict | None = None) -> dict[str, Any]:
         raise NotImplementedError
