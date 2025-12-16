@@ -125,19 +125,41 @@ class ProviderSyncService:
 
         vector_stores = provider.list_vector_stores(limit=_DEFAULT_LIST_LIMIT)
         provider_vs_ids: set[str] = set()
+        provider_vector_store_payloads: dict[str, dict] = {}
 
         for vs in vector_stores:
             vs_id = vs.get("id")
             if not vs_id:
                 continue
-            provider_vs_ids.add(str(vs_id))
+            vs_id = str(vs_id)
+            provider_vs_ids.add(vs_id)
+
+            vs_payload: dict = vs if isinstance(vs, dict) else {"id": vs_id}
+            try:
+                vs_detail = provider.retrieve_vector_store(vs_id)
+                if isinstance(vs_detail, dict):
+                    vs_payload = vs_detail
+                    provider_vector_store_payloads[vs_id] = vs_detail
+                    logger.info(
+                        "provider_sync retrieve_vector_store provider=%s vector_store_id=%s payload=%s",
+                        provider_type,
+                        vs_id,
+                        self._dump_payload(vs_detail),
+                    )
+            except Exception as e:
+                logger.warning(
+                    "provider_sync retrieve_vector_store_failed provider=%s vector_store_id=%s error=%s",
+                    provider_type,
+                    vs_id,
+                    repr(e),
+                )
 
             try:
                 rag_index = (
                     self._db.query(RagIndex)
                     .filter(RagIndex.domain_id == domain_id)
                     .filter(RagIndex.provider_type == provider_type)
-                    .filter(RagIndex.external_id == str(vs_id))
+                    .filter(RagIndex.external_id == vs_id)
                     .one_or_none()
                 )
 
@@ -146,13 +168,13 @@ class ProviderSyncService:
                         id=str(uuid4()),
                         domain_id=domain_id,
                         provider_type=provider_type,
-                        external_id=str(vs_id),
-                        name=vs.get("name"),
-                        description=vs.get("description"),
-                        chunking_strategy=vs.get("chunking_strategy"),
-                        expires_after=vs.get("expires_after"),
-                        file_ids=vs.get("file_ids") if isinstance(vs.get("file_ids"), list) else None,
-                        metadata_=vs.get("metadata") if isinstance(vs.get("metadata"), dict) else None,
+                        external_id=vs_id,
+                        name=vs_payload.get("name"),
+                        description=vs_payload.get("description"),
+                        chunking_strategy=vs_payload.get("chunking_strategy"),
+                        expires_after=vs_payload.get("expires_after"),
+                        file_ids=None,
+                        metadata_=vs_payload.get("metadata") if isinstance(vs_payload.get("metadata"), dict) else None,
                         indexing_status="not_indexed",
                     )
                     self._db.add(rag_index)
@@ -167,12 +189,16 @@ class ProviderSyncService:
                         ("chunking_strategy", "chunking_strategy"),
                         ("expires_after", "expires_after"),
                     ):
-                        if src_key in vs and getattr(rag_index, attr_name) != vs.get(src_key):
-                            setattr(rag_index, attr_name, vs.get(src_key))
+                        if src_key in vs_payload and getattr(rag_index, attr_name) != vs_payload.get(src_key):
+                            setattr(rag_index, attr_name, vs_payload.get(src_key))
                             changed = True
 
-                    if "metadata" in vs and isinstance(vs.get("metadata"), dict) and rag_index.metadata_ != vs.get("metadata"):
-                        rag_index.metadata_ = vs.get("metadata")
+                    if (
+                        "metadata" in vs_payload
+                        and isinstance(vs_payload.get("metadata"), dict)
+                        and rag_index.metadata_ != vs_payload.get("metadata")
+                    ):
+                        rag_index.metadata_ = vs_payload.get("metadata")
                         changed = True
 
                     if changed:
@@ -238,6 +264,26 @@ class ProviderSyncService:
                 continue
 
             try:
+                vs_payload = provider_vector_store_payloads.get(vs_id)
+                if vs_payload is None:
+                    vs_detail = provider.retrieve_vector_store(vs_id)
+                    if isinstance(vs_detail, dict):
+                        vs_payload = vs_detail
+                        logger.info(
+                            "provider_sync retrieve_vector_store provider=%s vector_store_id=%s payload=%s",
+                            provider_type,
+                            vs_id,
+                            self._dump_payload(vs_detail),
+                        )
+            except Exception as e:
+                logger.warning(
+                    "provider_sync retrieve_vector_store_failed provider=%s vector_store_id=%s error=%s",
+                    provider_type,
+                    vs_id,
+                    repr(e),
+                )
+
+            try:
                 items = provider.list_vector_store_files(
                     vs_id,
                     limit=_DEFAULT_LIST_LIMIT,
@@ -245,6 +291,9 @@ class ProviderSyncService:
             except Exception as e:
                 report["errors"].append(f"vector_store={vs_id}: ошибка получения списка файлов: {e}")
                 continue
+
+            local_file_ids_for_index: list[str] = []
+            skipped_items = 0
 
             for pos, item in enumerate(items, start=1):
                 vector_store_file_id = item.get("id")
@@ -277,6 +326,7 @@ class ProviderSyncService:
                     report["errors"].append(
                         f"vector_store={vs_id}: не удалось определить внешний file_id для элемента списка (id={vector_store_file_id})"
                     )
+                    skipped_items += 1
                     continue
                 external_file_id = str(external_file_id)
 
@@ -451,6 +501,8 @@ class ProviderSyncService:
                             link.include_order = pos
                             self._db.commit()
 
+                    local_file_ids_for_index.append(rag_file.id)
+
                     if upload is None:
                         upload = RagProviderFileUpload(
                             id=str(uuid4()),
@@ -513,6 +565,43 @@ class ProviderSyncService:
                     report["errors"].append(
                         f"vector_store={vs_id} external_file_id={external_file_id}: ошибка синхронизации файла: {e}"
                     )
+
+            expected_count = len(items) if isinstance(items, list) else 0
+            processed_count = len(local_file_ids_for_index)
+            logger.info(
+                "provider_sync index_files_summary provider=%s vector_store_id=%s expected=%s processed=%s skipped=%s",
+                provider_type,
+                vs_id,
+                expected_count,
+                processed_count,
+                skipped_items,
+            )
+
+            if expected_count == processed_count:
+                try:
+                    deleted = (
+                        self._db.query(RagIndexFile)
+                        .filter(RagIndexFile.index_id == rag_index.id)
+                        .filter(~RagIndexFile.file_id.in_(set(local_file_ids_for_index) or {""}))
+                        .delete(synchronize_session=False)
+                    )
+                    report["index_files_deleted"] += int(deleted or 0)
+
+                    if rag_index.file_ids != local_file_ids_for_index:
+                        rag_index.file_ids = local_file_ids_for_index
+
+                    self._db.commit()
+                except Exception as e:
+                    report["errors"].append(f"vector_store={vs_id}: ошибка финализации rag_index_files/file_ids: {e}")
+            else:
+                logger.warning(
+                    "provider_sync index_files_incomplete provider=%s vector_store_id=%s expected=%s processed=%s skipped=%s",
+                    provider_type,
+                    vs_id,
+                    expected_count,
+                    processed_count,
+                    skipped_items,
+                )
 
         return report
 
