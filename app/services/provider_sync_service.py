@@ -103,12 +103,18 @@ class ProviderSyncService:
         )
 
     def sync(self, provider_type: str) -> dict:
-        domain_id = self._config.default_domain_id
+        default_domain_id = self._config.default_domain_id
         provider = ProvidersConnectionsService(db=self._db).get_provider(provider_type)
+
+        domains_used: set[str] = set()
+        vector_store_domain_by_id: dict[str, str] = {}
+        vector_store_files_by_id: dict[str, list[dict]] = {}
 
         report: dict = {
             "provider_type": provider_type,
-            "domain_id": domain_id,
+            "domain_id": default_domain_id,
+            "default_domain_id": default_domain_id,
+            "domains_used": [],
             "indexes_created": 0,
             "indexes_updated": 0,
             "indexes_detached": 0,
@@ -155,18 +161,88 @@ class ProviderSyncService:
                 )
 
             try:
-                rag_index = (
+                domain_id_for_index: str | None = None
+                indexes = (
                     self._db.query(RagIndex)
-                    .filter(RagIndex.domain_id == domain_id)
                     .filter(RagIndex.provider_type == provider_type)
                     .filter(RagIndex.external_id == vs_id)
-                    .one_or_none()
+                    .all()
                 )
+                rag_index = indexes[0] if indexes else None
+                if len(indexes) > 1:
+                    report["errors"].append(
+                        f"vector_store={vs_id}: найдено несколько локальных индексов с одинаковым external_id (count={len(indexes)})"
+                    )
+
+                if rag_index is not None:
+                    domain_id_for_index = rag_index.domain_id
+
+                if domain_id_for_index is None:
+                    try:
+                        items = provider.list_vector_store_files(
+                            vs_id,
+                            limit=_DEFAULT_LIST_LIMIT,
+                        )
+                        if isinstance(items, list):
+                            vector_store_files_by_id[vs_id] = items
+                    except Exception as e:
+                        report["errors"].append(f"vector_store={vs_id}: ошибка получения списка файлов для определения домена: {e}")
+
+                    inferred_domains: set[str] = set()
+                    for item in vector_store_files_by_id.get(vs_id, []):
+                        vector_store_file_id = item.get("id")
+                        external_file_id = self._extract_external_file_id(item)
+                        if vector_store_file_id and (not external_file_id or "file_id" not in item):
+                            try:
+                                vs_file = provider.retrieve_vector_store_file(vs_id, str(vector_store_file_id))
+                                extracted = self._extract_external_file_id(vs_file if isinstance(vs_file, dict) else None)
+                                if extracted:
+                                    external_file_id = extracted
+                            except Exception:
+                                pass
+
+                        if not external_file_id:
+                            continue
+                        external_file_id = str(external_file_id)
+
+                        upload = (
+                            self._db.query(RagProviderFileUpload)
+                            .filter(RagProviderFileUpload.provider_id == provider_type)
+                            .filter(RagProviderFileUpload.external_file_id == external_file_id)
+                            .order_by(RagProviderFileUpload.created_at.desc())
+                            .first()
+                        )
+                        if upload is None:
+                            continue
+
+                        rag_file = self._db.query(RagFile).filter(RagFile.id == upload.local_file_id).one_or_none()
+                        if rag_file is None:
+                            continue
+
+                        inferred_domains.add(rag_file.domain_id)
+                        if len(inferred_domains) > 1:
+                            break
+
+                    if len(inferred_domains) == 1:
+                        domain_id_for_index = next(iter(inferred_domains))
+                    elif len(inferred_domains) > 1:
+                        report["errors"].append(
+                            f"vector_store={vs_id}: не удалось однозначно определить домен (файлы из разных доменов: {sorted(inferred_domains)})"
+                        )
+
+                        vector_store_domain_by_id[vs_id] = "__ambiguous__"
+                        continue
+
+                if domain_id_for_index is None:
+                    domain_id_for_index = default_domain_id
+
+                vector_store_domain_by_id[vs_id] = domain_id_for_index
+                domains_used.add(domain_id_for_index)
 
                 if rag_index is None:
                     rag_index = RagIndex(
                         id=str(uuid4()),
-                        domain_id=domain_id,
+                        domain_id=domain_id_for_index,
                         provider_type=provider_type,
                         external_id=vs_id,
                         name=vs_payload.get("name"),
@@ -211,7 +287,6 @@ class ProviderSyncService:
 
         local_indexes = (
             self._db.query(RagIndex)
-            .filter(RagIndex.domain_id == domain_id)
             .filter(RagIndex.provider_type == provider_type)
             .filter(RagIndex.external_id.isnot(None))
             .all()
@@ -250,18 +325,27 @@ class ProviderSyncService:
         indexes_by_external_id: dict[str, RagIndex] = {}
         for rag_index in (
             self._db.query(RagIndex)
-            .filter(RagIndex.domain_id == domain_id)
             .filter(RagIndex.provider_type == provider_type)
             .filter(RagIndex.external_id.isnot(None))
             .all()
         ):
             if rag_index.external_id:
+                if rag_index.external_id in indexes_by_external_id:
+                    report["errors"].append(
+                        f"vector_store={rag_index.external_id}: найдено несколько RagIndex с одинаковым external_id в разных доменах"
+                    )
+                    continue
                 indexes_by_external_id[rag_index.external_id] = rag_index
 
         for vs_id in provider_vs_ids:
+            if vector_store_domain_by_id.get(vs_id) == "__ambiguous__":
+                continue
             rag_index = indexes_by_external_id.get(vs_id)
             if rag_index is None:
                 continue
+
+            domain_id_for_index = vector_store_domain_by_id.get(vs_id) or rag_index.domain_id
+            domains_used.add(domain_id_for_index)
 
             try:
                 vs_payload = provider_vector_store_payloads.get(vs_id)
@@ -284,10 +368,15 @@ class ProviderSyncService:
                 )
 
             try:
-                items = provider.list_vector_store_files(
-                    vs_id,
-                    limit=_DEFAULT_LIST_LIMIT,
-                )
+                if vs_id in vector_store_files_by_id:
+                    items = vector_store_files_by_id[vs_id]
+                else:
+                    items = provider.list_vector_store_files(
+                        vs_id,
+                        limit=_DEFAULT_LIST_LIMIT,
+                    )
+                    if isinstance(items, list):
+                        vector_store_files_by_id[vs_id] = items
             except Exception as e:
                 report["errors"].append(f"vector_store={vs_id}: ошибка получения списка файлов: {e}")
                 continue
@@ -347,9 +436,9 @@ class ProviderSyncService:
                     rag_file: RagFile | None = None
                     if upload is not None:
                         rag_file = self._db.query(RagFile).filter(RagFile.id == upload.local_file_id).one_or_none()
-                        if rag_file is not None and rag_file.domain_id != domain_id:
+                        if rag_file is not None and rag_file.domain_id != domain_id_for_index:
                             report["errors"].append(
-                                f"vector_store={vs_id} external_file_id={external_file_id}: найден локальный файл в другом домене (file_id={rag_file.id}, domain_id={rag_file.domain_id})"
+                                f"vector_store={vs_id} external_file_id={external_file_id}: найден локальный файл в другом домене (file_id={rag_file.id}, domain_id={rag_file.domain_id}, expected_domain_id={domain_id_for_index})"
                             )
                             continue
 
@@ -440,7 +529,7 @@ class ProviderSyncService:
 
                         new_local_file_id = str(uuid4())
                         local_path = self._make_local_file_path(
-                            domain_id=domain_id,
+                            domain_id=domain_id_for_index,
                             local_file_id=new_local_file_id,
                             file_name=file_name,
                         )
@@ -450,7 +539,7 @@ class ProviderSyncService:
 
                         rag_file = RagFile(
                             id=new_local_file_id,
-                            domain_id=domain_id,
+                            domain_id=domain_id_for_index,
                             file_name=file_name,
                             file_type=file_type,
                             local_path=str(local_path),
@@ -603,6 +692,7 @@ class ProviderSyncService:
                     skipped_items,
                 )
 
+        report["domains_used"] = sorted(domains_used)
         return report
 
     def _extract_external_file_id(self, obj: dict | None) -> str | None:
