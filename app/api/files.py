@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from schemas.files import FileOut, FilePatchIn, FilesListOut
+from schemas.files import FileChangeDomainIn, FileChangeDomainOut, FileOut, FilePatchIn, FilesListOut
 from services.files_service import FilesService, parse_chunking_strategy, parse_tags
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
@@ -126,3 +126,29 @@ def delete_file(
     if not ok:
         raise HTTPException(status_code=404, detail="Файл не найден")
     return {"status": "ok"}
+
+
+@router.post("/files/{file_id}/change-domain", response_model=FileChangeDomainOut)
+def change_file_domain(
+    file_id: str,
+    payload: FileChangeDomainIn,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = FilesService(db=db, domain_id=domain_id)
+    try:
+        rag_file, info = service.change_domain(file_id=file_id, new_domain_id=payload.new_domain_id)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "Файл не найден":
+            raise HTTPException(status_code=404, detail=msg) from e
+        raise HTTPException(status_code=400, detail=msg) from e
+
+    return FileChangeDomainOut(
+        file=FileOut.model_validate(rag_file, from_attributes=True),
+        old_domain_id=info["old_domain_id"],
+        new_domain_id=info["new_domain_id"],
+        moved_on_disk=bool(info["moved_on_disk"]),
+        detached_index_links=int(info["detached_index_links"]),
+        indexes_file_ids_updated=int(info["indexes_file_ids_updated"]),
+    )
