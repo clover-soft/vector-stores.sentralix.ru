@@ -20,6 +20,7 @@ from services.providers_connections_service import ProvidersConnectionsService
 
 _DEFAULT_LIST_LIMIT = 1000
 _CHUNK_SIZE_BYTES = 1024 * 1024
+_EMPTY_CONTENT_SHA256 = hashlib.sha256(b"").hexdigest()
 
 
 logger = logging.getLogger(__name__)
@@ -302,6 +303,14 @@ class ProviderSyncService:
                             )
                             continue
 
+                    provider_meta: dict | None = None
+                    try:
+                        provider_meta = provider.retrieve_file(external_file_id)
+                    except Exception:
+                        provider_meta = vector_store_file_meta
+
+                    provider_status = self._provider_file_status(provider_meta) or "unknown"
+
                     provider_bytes: bytes | None = None
                     files_api_error: Exception | None = None
                     try:
@@ -347,15 +356,33 @@ class ProviderSyncService:
                                     error=e,
                                 )
 
-                        if provider_bytes is None:
-                            raise last_error or files_api_error or ValueError("Не удалось получить контент файла")
-                    provider_sha256 = self._calc_sha256_bytes(provider_bytes)
+                    provider_sha256: str | None = None
+                    content_error: Exception | None = None
+                    if provider_bytes is None:
+                        content_error = last_error or files_api_error
+                    else:
+                        provider_sha256 = self._calc_sha256_bytes(provider_bytes)
 
-                    provider_meta: dict | None = None
-                    try:
-                        provider_meta = provider.retrieve_file(external_file_id)
-                    except Exception:
-                        provider_meta = vector_store_file_meta
+                    local_sha256: str | None = None
+                    if rag_file is not None:
+                        local_path = Path(rag_file.local_path)
+                        if local_path.exists():
+                            try:
+                                local_sha256 = self._calc_sha256_file(local_path)
+                            except Exception as e:
+                                report["errors"].append(
+                                    f"file_id={rag_file.id}: ошибка вычисления sha256 локального файла: {e}"
+                                )
+                        else:
+                            if provider_bytes is not None:
+                                self._write_bytes(local_path, provider_bytes)
+                                rag_file.size_bytes = len(provider_bytes)
+                                self._db.commit()
+                                local_sha256 = provider_sha256
+                            else:
+                                report["errors"].append(
+                                    f"file_id={rag_file.id}: локальный файл отсутствует на диске и провайдер не вернул контент"
+                                )
 
                     if rag_file is None:
                         file_name = self._provider_file_name(external_file_id=external_file_id, provider_meta=provider_meta)
@@ -367,7 +394,9 @@ class ProviderSyncService:
                             local_file_id=new_local_file_id,
                             file_name=file_name,
                         )
-                        self._write_bytes(local_path, provider_bytes)
+
+                        if provider_bytes is not None:
+                            self._write_bytes(local_path, provider_bytes)
 
                         rag_file = RagFile(
                             id=new_local_file_id,
@@ -375,7 +404,7 @@ class ProviderSyncService:
                             file_name=file_name,
                             file_type=file_type,
                             local_path=str(local_path),
-                            size_bytes=len(provider_bytes),
+                            size_bytes=len(provider_bytes) if provider_bytes is not None else 0,
                             chunking_strategy=None,
                             tags=None,
                             notes=None,
@@ -385,7 +414,8 @@ class ProviderSyncService:
                         self._db.refresh(rag_file)
                         report["files_created"] += 1
                         action = "created"
-                        local_sha256 = provider_sha256
+                        if provider_sha256 is not None:
+                            local_sha256 = provider_sha256
 
                         if upload is not None and upload.local_file_id != rag_file.id:
                             upload.local_file_id = rag_file.id
@@ -393,13 +423,8 @@ class ProviderSyncService:
                     else:
                         report["files_kept"] += 1
                         action = "kept"
-                        local_sha256 = None
-                        try:
-                            local_sha256 = self._calc_sha256_file(Path(rag_file.local_path))
-                        except Exception as e:
-                            report["errors"].append(f"file_id={rag_file.id}: ошибка вычисления sha256 локального файла: {e}")
 
-                    if local_sha256 is not None and local_sha256 != provider_sha256:
+                    if local_sha256 is not None and provider_sha256 is not None and local_sha256 != provider_sha256:
                         mismatch = {
                             "vector_store_id": vs_id,
                             "external_file_id": external_file_id,
@@ -433,9 +458,9 @@ class ProviderSyncService:
                             local_file_id=rag_file.id,
                             external_file_id=external_file_id,
                             external_uploaded_at=self._provider_uploaded_at(provider_meta),
-                            content_sha256=local_sha256 or provider_sha256,
-                            status="uploaded",
-                            last_error=None,
+                            content_sha256=local_sha256 or provider_sha256 or _EMPTY_CONTENT_SHA256,
+                            status=provider_status,
+                            last_error=repr(content_error) if content_error is not None else None,
                             raw_provider_json=provider_meta,
                         )
                         self._db.add(upload)
@@ -452,11 +477,14 @@ class ProviderSyncService:
                             upload.external_uploaded_at = new_dt
                             changed = True
                         new_sha = local_sha256 or provider_sha256
-                        if upload.content_sha256 != new_sha:
+                        if new_sha is not None and upload.content_sha256 != new_sha:
                             upload.content_sha256 = new_sha
                             changed = True
-                        if upload.status != "uploaded":
-                            upload.status = "uploaded"
+                        if upload.status != provider_status:
+                            upload.status = provider_status
+                            changed = True
+                        if (repr(content_error) if content_error is not None else None) != upload.last_error:
+                            upload.last_error = repr(content_error) if content_error is not None else None
                             changed = True
                         if provider_meta is not None and upload.raw_provider_json != provider_meta:
                             upload.raw_provider_json = provider_meta
@@ -472,7 +500,12 @@ class ProviderSyncService:
                             "action": action,
                             "local_sha256": local_sha256,
                             "provider_sha256": provider_sha256,
-                            "byte_mismatch": bool(local_sha256 is not None and local_sha256 != provider_sha256),
+                            "byte_mismatch": bool(
+                                local_sha256 is not None
+                                and provider_sha256 is not None
+                                and local_sha256 != provider_sha256
+                            ),
+                            "content_available": bool(provider_bytes is not None),
                         }
                     )
 
@@ -566,6 +599,22 @@ class ProviderSyncService:
         created_at = provider_meta.get("created_at")
         if isinstance(created_at, (int, float)):
             return datetime.utcfromtimestamp(created_at)
+        return None
+
+    def _provider_file_status(self, provider_meta: dict | None) -> str | None:
+        if not provider_meta:
+            return None
+
+        status = provider_meta.get("status")
+        if isinstance(status, str) and status:
+            return status
+
+        file_obj = provider_meta.get("file")
+        if isinstance(file_obj, dict):
+            status = file_obj.get("status")
+            if isinstance(status, str) and status:
+                return status
+
         return None
 
     def _provider_file_name(self, *, external_file_id: str, provider_meta: dict | None) -> str:
