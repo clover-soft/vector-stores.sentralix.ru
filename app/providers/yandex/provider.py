@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from openai import OpenAI
+from openai import NotFoundError
 
 from models.rag_provider_connection import RagProviderConnection
 from providers.base import BaseProvider
@@ -54,6 +55,12 @@ class YandexProvider(BaseProvider):
         return [self._dump(i) for i in items]
 
     def healthcheck(self) -> None:
+        try:
+            _ = self._client.vector_stores.list(limit=1)
+            return
+        except NotFoundError:
+            pass
+
         _ = self._client.models.list()
 
     def create_vector_store(
