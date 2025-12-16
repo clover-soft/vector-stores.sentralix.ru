@@ -5,12 +5,15 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from config import get_config
 from database import get_db
 from schemas.admin_providers import (
     ProviderConnectionCreateIn,
     ProviderConnectionOut,
     ProviderConnectionPatchIn,
     ProviderConnectionsListOut,
+    ProviderCredentialsEncryptIn,
+    ProviderCredentialsEncryptOut,
     ProviderFileUploadCreateIn,
     ProviderFileUploadOut,
     ProviderFileUploadPatchIn,
@@ -26,6 +29,7 @@ from schemas.admin_providers import (
 from services.provider_file_uploads_service import ProviderFileUploadsService
 from services.provider_vector_stores_service import ProviderVectorStoresService
 from services.providers_connections_service import ProvidersConnectionsService
+from utils.crypto import encrypt_json
 
 router = APIRouter(prefix="/api/v1/admin/providers", tags=["providers-admin"])
 
@@ -36,6 +40,16 @@ def _raise_provider_error(e: Exception) -> None:
     if isinstance(e, NotImplementedError):
         raise HTTPException(status_code=501, detail=str(e)) from e
     raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.post("/credentials/encrypt", response_model=ProviderCredentialsEncryptOut)
+def encrypt_provider_credentials(payload: ProviderCredentialsEncryptIn):
+    config = get_config()
+    if not config.provider_secrets_key:
+        raise HTTPException(status_code=500, detail="PROVIDER_SECRETS_KEY не задан")
+
+    credentials_enc = encrypt_json(payload.credentials, config.provider_secrets_key)
+    return ProviderCredentialsEncryptOut(credentials_enc=credentials_enc)
 
 
 @router.get("/connections", response_model=ProviderConnectionsListOut)

@@ -126,3 +126,11 @@ class VectorStoreFileBatchCreateIn(BaseModel):
     files: list[dict] | None = None
     attributes: dict | None = None
     chunking_strategy: dict | None = None
+
+
+class ProviderCredentialsEncryptIn(BaseModel):
+    credentials: dict
+
+
+class ProviderCredentialsEncryptOut(BaseModel):
+    credentials_enc: dict
