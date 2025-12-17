@@ -84,8 +84,10 @@
   - Привязка файлов к индексу:
     - локальная истина: `rag_index_files`.
     - на провайдере: `vector_store_files_create/delete`.
-  - Загрузка файла в провайдера (получение `file_id`) остаётся обязанностью существующего `ProviderFileUploadsService`:
-    - Vector Stores сервис должен ожидать, что для `local_file_id` можно получить `external_file_id`.
+  - Семантика `external_file_id` для `yandex`:
+    - В `rag_provider_file_uploads.external_file_id` хранится `vector_store.file.id` (объект `vector_store.file`).
+    - Это значение используется как идентификатор для операций `vector_stores.files.retrieve/delete/content`.
+    - Получение байтов из Files API (`/v1/files/{file_id}/content`) может быть недоступно (например `404`), поэтому пайплайны не должны на это полагаться.
 
   #### 6) Требования к эндпоинтам
   На этом шаге требуется обеспечить доступ к операциям через сервисный слой.

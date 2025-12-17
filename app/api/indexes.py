@@ -15,6 +15,7 @@ from schemas.indexes import (
 from schemas.files import FileOut
 from services.index_files_service import IndexFilesService
 from services.indexes_service import IndexesService
+from services.index_publish_service import IndexPublishService
 
 router = APIRouter(prefix="/api/v1", tags=["indexes"])
 
@@ -88,6 +89,36 @@ def patch_index(
     if rag_index is None:
         raise HTTPException(status_code=404, detail="Индекс не найден")
     return IndexOut.model_validate(rag_index, from_attributes=True)
+
+
+@router.post("/indexes/{index_id}/publish")
+def publish_index(
+    index_id: str,
+    detach_extra: bool = True,
+    force_upload: bool = False,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexPublishService(db=db, domain_id=domain_id)
+    try:
+        result = service.publish(index_id=index_id, force_upload=force_upload, detach_extra=detach_extra)
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Индекс не найден":
+            raise HTTPException(status_code=404, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка публикации в провайдер: {e}") from e
+
+    return {
+        "provider_type": result.get("provider_type"),
+        "vector_store_id": result.get("vector_store_id"),
+        "created_vector_store": bool(result.get("created_vector_store")),
+        "attached_count": int(result.get("attached_count") or 0),
+        "detached_count": int(result.get("detached_count") or 0),
+        "attach_results": result.get("attach_results") or [],
+        "errors": result.get("errors") or [],
+    }
 
 
 @router.delete("/indexes/{index_id}")

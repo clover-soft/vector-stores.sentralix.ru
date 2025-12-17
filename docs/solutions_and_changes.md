@@ -58,3 +58,12 @@
   - `rag_indexes.indexed_at` устанавливается из `payload.created_at` (timestamp → UTC datetime).
   - Из `rag_indexes` удалено поле `chunking_strategy` (миграция `docs/migrations/0008_drop_rag_indexes_chunking_strategy.sql`).
   - При публикации/прикреплении файлов в vector store `chunking_strategy` передаётся из `rag_files.chunking_strategy`.
+
+### 2025-12-17: Yandex — `rag_provider_file_uploads.external_file_id` хранит `vector_store.file.id`
+
+- Цель:
+  - Зафиксировать семантику внешнего идентификатора файла для провайдера `yandex`, чтобы не смешивать идентификаторы разных сущностей.
+- Решение:
+  - Для `provider_id="yandex"` поле `rag_provider_file_uploads.external_file_id` трактуется как `vector_store.file.id` (объект `vector_store.file`).
+  - Это значение используется как идентификатор для операций `vector_stores.files.retrieve/delete/content`.
+  - Для `yandex` не полагаемся на получение байтов через `Files API` (может возвращать `404 Not Found`).

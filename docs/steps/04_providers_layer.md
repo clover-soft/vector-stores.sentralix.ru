@@ -80,6 +80,9 @@
   ```
 
   - `content_sha256` — sha256 содержимого локального файла на момент синхронизации.
+  - `external_file_id` — внешний идентификатор у провайдера:
+    - для большинства провайдеров это `file_id` из Files API;
+    - для `provider_id="yandex"` это `vector_store.file.id` (объект прикрепления файла к vector store).
   - `status` — строковый статус. Базовые статусы:
     - `pending` — создана запись, загрузка ещё не выполнена.
     - `uploaded` — файл успешно загружен/создан у провайдера.
@@ -131,6 +134,9 @@
     - вызвать `provider.files.create(...)` (или эквивалент) и получить `external_file_id`,
     - обновить запись: `external_file_id`, `external_uploaded_at`, `status=uploaded`, `raw_provider_json`.
     - при ошибке: `status=failed`, `last_error`.
+
+  Примечание для `yandex`:
+  - `external_file_id` фиксируется как `vector_store.file.id` (идентификатор объекта прикрепления), а не как Files API `file_id`.
 
   **Сценарий D: привязка файла к vector store у провайдера**
   - Для привязки файла к удалённому vector store:
