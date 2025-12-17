@@ -9,6 +9,9 @@ from schemas.indexes import (
     IndexFilesListOut,
     IndexFileOut,
     IndexesListOut,
+    IndexProviderFileOut,
+    IndexProviderFilesOut,
+    IndexProviderUploadOut,
     IndexPublishOut,
     IndexesSyncOut,
     IndexOut,
@@ -17,6 +20,7 @@ from schemas.indexes import (
 )
 from schemas.files import FileOut
 from services.index_files_service import IndexFilesService
+from services.index_files_provider_status_service import IndexFilesProviderStatusService
 from services.indexes_service import IndexesService
 from services.index_publish_service import IndexPublishService
 from services.indexes_sync_service import IndexesSyncService
@@ -295,3 +299,50 @@ def list_index_files(
         )
 
     return IndexFilesListOut(items=items)
+
+
+@router.get("/indexes/{index_id}/provider-files", response_model=IndexProviderFilesOut)
+def list_index_provider_files(
+    index_id: str,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexFilesProviderStatusService(db=db, domain_id=domain_id)
+    try:
+        result = service.list_provider_files(index_id=index_id)
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Индекс не найден":
+            raise HTTPException(status_code=404, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+
+    items: list[IndexProviderFileOut] = []
+    for item in result.get("items") or []:
+        include_order = item.get("include_order")
+        rag_file = item.get("file")
+        provider_upload = item.get("provider_upload")
+        provider_vector_store_file = item.get("provider_vector_store_file")
+
+        provider_upload_out = None
+        if isinstance(provider_upload, dict):
+            provider_upload_out = IndexProviderUploadOut(
+                status=str(provider_upload.get("status") or ""),
+                last_error=provider_upload.get("last_error"),
+                external_file_id=provider_upload.get("external_file_id"),
+            )
+
+        items.append(
+            IndexProviderFileOut(
+                include_order=int(include_order or 0),
+                file=FileOut.model_validate(rag_file, from_attributes=True),
+                provider_upload=provider_upload_out,
+                provider_vector_store_file=provider_vector_store_file if isinstance(provider_vector_store_file, dict) else None,
+            )
+        )
+
+    return IndexProviderFilesOut(
+        provider_type=str(result.get("provider_type") or ""),
+        vector_store_id=result.get("vector_store_id"),
+        items=items,
+        errors=list(result.get("errors") or []),
+    )

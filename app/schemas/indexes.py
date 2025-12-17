@@ -63,6 +63,26 @@ class IndexFilesListOut(BaseModel):
     items: list[IndexFileOut]
 
 
+class IndexProviderUploadOut(BaseModel):
+    status: str
+    last_error: str | None = None
+    external_file_id: str | None = None
+
+
+class IndexProviderFileOut(BaseModel):
+    include_order: int
+    file: FileOut
+    provider_upload: IndexProviderUploadOut | None = None
+    provider_vector_store_file: dict | None = None
+
+
+class IndexProviderFilesOut(BaseModel):
+    provider_type: str
+    vector_store_id: str | None = None
+    items: list[IndexProviderFileOut]
+    errors: list[str]
+
+
 class IndexSyncReportOut(BaseModel):
     provider_type: str
     vector_store_id: str
