@@ -34,6 +34,13 @@ class ProviderFileUploadsService:
             .one_or_none()
         )
 
+    def list_file_uploads(self, *, local_file_id: str, provider_type: str | None = None) -> list[RagProviderFileUpload]:
+        q = self._db.query(RagProviderFileUpload).filter(RagProviderFileUpload.local_file_id == local_file_id)
+        if provider_type is not None:
+            q = q.filter(RagProviderFileUpload.provider_id == provider_type)
+
+        return q.order_by(RagProviderFileUpload.created_at.desc()).all()
+
     def get_or_sync(
         self,
         provider_type: str,

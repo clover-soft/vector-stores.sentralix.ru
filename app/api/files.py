@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from schemas.files import FileChangeDomainIn, FileChangeDomainOut, FileOut, FilePatchIn, FilesListOut
+from schemas.files import (
+    FileChangeDomainIn,
+    FileChangeDomainOut,
+    FileOut,
+    FilePatchIn,
+    FileProviderUploadMetaIn,
+    FileProviderUploadOut,
+    FileProviderUploadsListOut,
+    FilesListOut,
+)
 from services.files_service import FilesService, parse_chunking_strategy, parse_tags
+from services.provider_file_uploads_service import ProviderFileUploadsService
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
 
@@ -151,4 +161,53 @@ def change_file_domain(
         moved_on_disk=bool(info["moved_on_disk"]),
         detached_index_links=int(info["detached_index_links"]),
         indexes_file_ids_updated=int(info["indexes_file_ids_updated"]),
+    )
+
+
+@router.post("/files/{file_id}/provider-uploads/{provider_type}", response_model=FileProviderUploadOut)
+def get_or_create_provider_upload(
+    file_id: str,
+    provider_type: str,
+    force: bool = False,
+    payload: FileProviderUploadMetaIn | None = Body(default=None),
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    files_service = FilesService(db=db, domain_id=domain_id)
+    rag_file = files_service.get_file(file_id)
+    if rag_file is None:
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    service = ProviderFileUploadsService(db=db)
+    try:
+        upload = service.get_or_sync(
+            provider_type=provider_type,
+            local_file_id=file_id,
+            force=force,
+            meta=payload.meta if payload is not None else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка загрузки файла в провайдера: {e}") from e
+
+    return FileProviderUploadOut.model_validate(upload, from_attributes=True)
+
+
+@router.get("/files/{file_id}/provider-uploads", response_model=FileProviderUploadsListOut)
+def list_file_provider_uploads(
+    file_id: str,
+    provider_type: str | None = None,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    files_service = FilesService(db=db, domain_id=domain_id)
+    rag_file = files_service.get_file(file_id)
+    if rag_file is None:
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    service = ProviderFileUploadsService(db=db)
+    items = service.list_file_uploads(local_file_id=file_id, provider_type=provider_type)
+    return FileProviderUploadsListOut(
+        items=[FileProviderUploadOut.model_validate(i, from_attributes=True) for i in items],
     )

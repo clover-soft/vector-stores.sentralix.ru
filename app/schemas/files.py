@@ -45,3 +45,29 @@ class FileChangeDomainOut(BaseModel):
     moved_on_disk: bool
     detached_index_links: int
     indexes_file_ids_updated: int
+
+
+class FileProviderUploadMetaIn(BaseModel):
+    meta: dict | None = None
+
+
+class FileProviderUploadOut(BaseModel):
+    id: str
+    provider_id: str
+    local_file_id: str
+
+    external_file_id: str | None = None
+    external_uploaded_at: datetime | None = None
+
+    content_sha256: str
+    status: str
+    last_error: str | None = None
+
+    raw_provider_json: dict | None = None
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class FileProviderUploadsListOut(BaseModel):
+    items: list[FileProviderUploadOut]

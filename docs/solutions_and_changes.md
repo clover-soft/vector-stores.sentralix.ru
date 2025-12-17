@@ -99,3 +99,12 @@
     - статуса загрузки файла в провайдера (`rag_provider_file_uploads`)
     - статуса индексирования файла в рамках индекса (`list_vector_store_files`) без ожидания завершения (polling).
   - Добавлен эндпоинт `GET /api/v1/indexes/{index_id}/provider-files`.
+
+### 2025-12-17: Доменные загрузки файлов в провайдера (шаг 10)
+
+- Цель:
+  - Дать фронтенду возможность управлять загрузками локальных файлов в провайдера (Files API) без admin-ручек.
+- Изменения:
+  - Добавлены эндпоинты:
+    - `POST /api/v1/files/{file_id}/provider-uploads/{provider_type}` — создать/обновить upload через `get_or_sync`.
+    - `GET /api/v1/files/{file_id}/provider-uploads` — список upload-ов (опционально фильтр `provider_type`).
