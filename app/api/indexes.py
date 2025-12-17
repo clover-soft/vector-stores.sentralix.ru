@@ -13,6 +13,8 @@ from schemas.indexes import (
     IndexProviderFilesOut,
     IndexProviderUploadOut,
     IndexPublishOut,
+    IndexSearchIn,
+    IndexSearchOut,
     IndexesSyncOut,
     IndexOut,
     IndexPatchIn,
@@ -21,6 +23,7 @@ from schemas.indexes import (
 from schemas.files import FileOut
 from services.index_files_service import IndexFilesService
 from services.index_files_provider_status_service import IndexFilesProviderStatusService
+from services.index_search_service import IndexSearchService
 from services.indexes_service import IndexesService
 from services.index_publish_service import IndexPublishService
 from services.indexes_sync_service import IndexesSyncService
@@ -299,6 +302,29 @@ def list_index_files(
         )
 
     return IndexFilesListOut(items=items)
+
+
+@router.post("/indexes/{index_id}/search", response_model=IndexSearchOut)
+def search_index(
+    index_id: str,
+    payload: IndexSearchIn,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexSearchService(db=db, domain_id=domain_id)
+    try:
+        items = service.search(index_id=index_id, **payload.model_dump())
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Индекс не найден":
+            raise HTTPException(status_code=404, detail=detail) from e
+        if detail == "У индекса нет external_id":
+            raise HTTPException(status_code=409, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка поиска в провайдере: {e}") from e
+
+    return IndexSearchOut(items=items)
 
 
 @router.get("/indexes/{index_id}/provider-files", response_model=IndexProviderFilesOut)

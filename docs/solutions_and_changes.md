@@ -117,3 +117,11 @@
   - Добавлены эндпоинты:
     - `GET /api/v1/providers` — список провайдеров (минимально: `provider_type`, `is_enabled`).
     - `GET /api/v1/providers/{provider_type}/health` — healthcheck провайдера без выдачи секретов.
+
+### 2025-12-17: Поиск по индексу (шаг 12)
+
+- Цель:
+  - Дать фронтенду продуктовую ручку поиска по базе знаний через локальный `index_id` без знания `external_id`.
+- Изменения:
+  - Добавлен эндпоинт `POST /api/v1/indexes/{index_id}/search`, который делегирует вызов в `provider.search_vector_store(external_id, ...)`.
+  - Ошибки: 404 (индекс не найден), 409 (нет `external_id`), 502 (ошибка провайдера).

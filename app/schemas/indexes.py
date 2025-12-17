@@ -83,6 +83,18 @@ class IndexProviderFilesOut(BaseModel):
     errors: list[str]
 
 
+class IndexSearchIn(BaseModel):
+    query: str | list[str]
+    filters: dict | None = None
+    max_num_results: int | None = None
+    ranking_options: dict | None = None
+    rewrite_query: bool | None = None
+
+
+class IndexSearchOut(BaseModel):
+    items: list[dict]
+
+
 class IndexSyncReportOut(BaseModel):
     provider_type: str
     vector_store_id: str
