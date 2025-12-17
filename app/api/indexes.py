@@ -9,13 +9,16 @@ from schemas.indexes import (
     IndexFilesListOut,
     IndexFileOut,
     IndexesListOut,
+    IndexesSyncOut,
     IndexOut,
     IndexPatchIn,
+    IndexSyncOut,
 )
 from schemas.files import FileOut
 from services.index_files_service import IndexFilesService
 from services.indexes_service import IndexesService
 from services.index_publish_service import IndexPublishService
+from services.indexes_sync_service import IndexesSyncService
 
 router = APIRouter(prefix="/api/v1", tags=["indexes"])
 
@@ -119,6 +122,55 @@ def publish_index(
         "attach_results": result.get("attach_results") or [],
         "errors": result.get("errors") or [],
     }
+
+
+@router.post("/indexes/{index_id}/sync", response_model=IndexSyncOut)
+def sync_index(
+    index_id: str,
+    force: bool = False,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexesSyncService(db=db, domain_id=domain_id)
+    try:
+        result = service.sync_index(index_id=index_id, force=force)
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Индекс не найден":
+            raise HTTPException(status_code=404, detail=detail) from e
+        if detail == "У индекса нет external_id":
+            raise HTTPException(status_code=409, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка синхронизации с провайдером: {e}") from e
+
+    rag_index = result.get("rag_index")
+    return IndexSyncOut(
+        item=IndexOut.model_validate(rag_index, from_attributes=True),
+        sync_report=result.get("sync_report") or {},
+    )
+
+
+@router.post("/indexes/sync", response_model=IndexesSyncOut)
+def sync_indexes(
+    provider_type: str | None = None,
+    force: bool = False,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexesSyncService(db=db, domain_id=domain_id)
+    try:
+        result = service.sync_domain_indexes(provider_type=provider_type, force=force)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка синхронизации с провайдером: {e}") from e
+
+    items = result.get("items") or []
+    errors = result.get("errors") or []
+
+    return IndexesSyncOut(
+        items=[IndexOut.model_validate(i, from_attributes=True) for i in items],
+        errors=errors,
+    )
 
 
 @router.delete("/indexes/{index_id}")

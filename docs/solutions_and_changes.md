@@ -67,3 +67,15 @@
   - Для `provider_id="yandex"` поле `rag_provider_file_uploads.external_file_id` трактуется как `vector_store.file.id` (объект `vector_store.file`).
   - Это значение используется как идентификатор для операций `vector_stores.files.retrieve/delete/content`.
   - Для `yandex` не полагаемся на получение байтов через `Files API` (может возвращать `404 Not Found`).
+
+### 2025-12-17: Доменные ручки синхронизации индексов и статуса (шаг 7)
+
+- Цель:
+  - Дать продуктовые (не admin) ручки для polling/sync состояния индекса у провайдера с доменной изоляцией.
+- Изменения:
+  - Добавлен сервис `IndexesSyncService`.
+  - Добавлены эндпоинты:
+    - `POST /api/v1/indexes/{index_id}/sync` — синхронизация одного индекса домена.
+    - `POST /api/v1/indexes/sync` — синхронизация всех индексов домена (опционально фильтр по `provider_type`).
+  - При синхронизации сохраняется полный payload vector store в `rag_indexes.metadata.provider_payload`.
+  - `rag_indexes.indexing_status` обновляется агрегированием статусов файлов из `list_vector_store_files` без ожидания индексации (polling).

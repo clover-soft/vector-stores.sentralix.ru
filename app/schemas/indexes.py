@@ -61,3 +61,22 @@ class IndexFileOut(BaseModel):
 
 class IndexFilesListOut(BaseModel):
     items: list[IndexFileOut]
+
+
+class IndexSyncReportOut(BaseModel):
+    provider_type: str
+    vector_store_id: str
+    provider_files_count: int
+    aggregated_status: str
+    forced: bool
+    skipped: bool
+
+
+class IndexSyncOut(BaseModel):
+    item: IndexOut
+    sync_report: IndexSyncReportOut
+
+
+class IndexesSyncOut(BaseModel):
+    items: list[IndexOut]
+    errors: list[str]
