@@ -292,7 +292,7 @@ class ProviderSyncService:
                             changed = True
 
                     if isinstance(vs_payload, dict):
-                        current_meta = rag_index.metadata_ if isinstance(rag_index.metadata_, dict) else {}
+                        current_meta = dict(rag_index.metadata_) if isinstance(rag_index.metadata_, dict) else {}
                         provider_meta = vs_payload.get("metadata")
                         if isinstance(provider_meta, dict):
                             for k, v in provider_meta.items():
