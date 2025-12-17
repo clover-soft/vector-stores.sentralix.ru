@@ -7,6 +7,7 @@ from api.admin_providers import router as admin_providers_router
 from api.files import router as files_router
 from api.indexes import router as indexes_router
 from api.health import router as health_router
+from api.providers import router as providers_router
 from config import get_config
 from database import init_db
 from utils.logger import configure_logging
@@ -48,6 +49,7 @@ app.add_middleware(AllowHostsMiddleware, allow_hosts=config.allow_hosts)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_router)
+app.include_router(providers_router)
 app.include_router(files_router)
 app.include_router(indexes_router)
 app.include_router(admin_providers_router)

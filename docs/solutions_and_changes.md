@@ -108,3 +108,12 @@
   - Добавлены эндпоинты:
     - `POST /api/v1/files/{file_id}/provider-uploads/{provider_type}` — создать/обновить upload через `get_or_sync`.
     - `GET /api/v1/files/{file_id}/provider-uploads` — список upload-ов (опционально фильтр `provider_type`).
+
+### 2025-12-17: Публичные ручки провайдеров (шаг 11)
+
+- Цель:
+  - Дать фронтенду продуктовый способ получить список доступных провайдеров и проверить работоспособность.
+- Изменения:
+  - Добавлены эндпоинты:
+    - `GET /api/v1/providers` — список провайдеров (минимально: `provider_type`, `is_enabled`).
+    - `GET /api/v1/providers/{provider_type}/health` — healthcheck провайдера без выдачи секретов.

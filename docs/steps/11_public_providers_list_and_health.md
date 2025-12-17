@@ -21,4 +21,4 @@
   - Реализованы `GET /api/v1/providers` и `GET /api/v1/providers/{provider_type}/health`.
   - В ответах отсутствуют секретные поля.
   - Swagger документирован.
-- Выполнено: нет
+- Выполнено: да
