@@ -23,7 +23,7 @@
   - Зафиксировать правила обновления:
     - изменение настроек индекса обновляет `updated_at` автоматически (по схеме БД);
     - поля `external_id` и `indexing_status` на этом этапе управляются локально (без провайдера).
-    - структура `rag_indexes` приведена к схеме OpenAI vector stores (`name`, `description`, `chunking_strategy`, `expires_after`, `file_ids`, `metadata`).
+    - структура `rag_indexes` приведена к схеме OpenAI vector stores (`name`, `description`, `expires_after`, `file_ids`, `metadata`).
 - Ожидаемый результат: 
   - Индексы и связи индекс↔файл управляются в локальной БД, без интеграции с провайдером.
 - Критерии готовности (Definition of Done):  

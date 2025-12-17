@@ -45,7 +45,10 @@
       - `RagIndex.provider_type == provider_type` AND `RagIndex.external_id == vs["id"]`
     - если найден:
       - обновить поля (по возможности):
-        - `name`, `description`, `expires_after`, `chunking_strategy`, `metadata`.
+        - `name`, `description`, `expires_after`, `metadata`.
+        - сохранить полный payload vector store в `rag_indexes.metadata.provider_payload`.
+        - установить `rag_indexes.indexing_status` из `payload.status`.
+        - установить `rag_indexes.indexed_at` из `payload.created_at`.
     - если не найден:
       - создать новый `RagIndex`:
         - `id = uuid4()`

@@ -17,10 +17,9 @@ class IndexOut(BaseModel):
     name: str | None = None
     description: str | None = None
 
-    chunking_strategy: dict | None = None
     expires_after: dict | None = None
     file_ids: list[str] | None = None
-    metadata: dict[str, str] | None = Field(default=None, validation_alias="metadata_")
+    metadata: dict | None = Field(default=None, validation_alias="metadata_")
 
     indexing_status: str
     indexed_at: datetime | None = None
@@ -35,10 +34,9 @@ class IndexCreateIn(BaseModel):
     name: str | None = Field(default=None)
     description: str | None = Field(default=None)
 
-    chunking_strategy: dict | None = Field(default=None)
     expires_after: dict | None = Field(default=None)
     file_ids: list[str] | None = Field(default=None)
-    metadata: dict[str, str] | None = Field(default=None)
+    metadata: dict | None = Field(default=None)
 
 
 class IndexPatchIn(BaseModel):
@@ -47,10 +45,9 @@ class IndexPatchIn(BaseModel):
     name: str | None = Field(default=None)
     description: str | None = Field(default=None)
 
-    chunking_strategy: dict | None = Field(default=None)
     expires_after: dict | None = Field(default=None)
     file_ids: list[str] | None = Field(default=None)
-    metadata: dict[str, str] | None = Field(default=None)
+    metadata: dict | None = Field(default=None)
 
 
 class IndexesListOut(BaseModel):

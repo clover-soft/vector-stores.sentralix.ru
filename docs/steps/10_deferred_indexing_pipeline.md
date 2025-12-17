@@ -11,6 +11,7 @@
     - сохранение `rag_indexes.external_id`;
     - постановку `indexing_status = in_progress` и обновление `indexed_at`;
     - подгрузку/прикрепление файлов из `rag_index_files`;
+    - при прикреплении файлов передавать `chunking_strategy` из `rag_files.chunking_strategy` (на уровне файла);
     - запуск индексации;
     - опрос статуса и обновление `indexing_status` в `rag_indexes` (`done`/`failed`).
   - Реализовать операции удаления индекса у провайдера при удалении локального индекса (или по отдельной команде API).

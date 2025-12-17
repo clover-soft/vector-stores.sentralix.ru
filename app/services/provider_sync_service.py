@@ -183,6 +183,12 @@ class ProviderSyncService:
                             vs_id,
                             limit=_DEFAULT_LIST_LIMIT,
                         )
+                        logger.info(
+                            "provider_sync list_vector_store_files provider=%s vector_store_id=%s payload=%s",
+                            provider_type,
+                            vs_id,
+                            self._dump_payload(items),
+                        )
                         if isinstance(items, list):
                             vector_store_files_by_id[vs_id] = items
                     except Exception as e:
@@ -240,6 +246,23 @@ class ProviderSyncService:
                 domains_used.add(domain_id_for_index)
 
                 if rag_index is None:
+                    provider_status = vs_payload.get("status") if isinstance(vs_payload, dict) else None
+                    if not isinstance(provider_status, str) or not provider_status:
+                        provider_status = "not_indexed"
+
+                    provider_created_at = vs_payload.get("created_at") if isinstance(vs_payload, dict) else None
+                    indexed_at: datetime | None = None
+                    if isinstance(provider_created_at, (int, float)):
+                        indexed_at = datetime.utcfromtimestamp(provider_created_at)
+
+                    metadata: dict | None = None
+                    if isinstance(vs_payload, dict):
+                        metadata = {}
+                        provider_meta = vs_payload.get("metadata")
+                        if isinstance(provider_meta, dict):
+                            metadata.update(provider_meta)
+                        metadata["provider_payload"] = vs_payload
+
                     rag_index = RagIndex(
                         id=str(uuid4()),
                         domain_id=domain_id_for_index,
@@ -247,11 +270,11 @@ class ProviderSyncService:
                         external_id=vs_id,
                         name=vs_payload.get("name"),
                         description=vs_payload.get("description"),
-                        chunking_strategy=vs_payload.get("chunking_strategy"),
                         expires_after=vs_payload.get("expires_after"),
                         file_ids=None,
-                        metadata_=vs_payload.get("metadata") if isinstance(vs_payload.get("metadata"), dict) else None,
-                        indexing_status="not_indexed",
+                        metadata_=metadata,
+                        indexing_status=str(provider_status),
+                        indexed_at=indexed_at,
                     )
                     self._db.add(rag_index)
                     self._db.commit()
@@ -262,20 +285,39 @@ class ProviderSyncService:
                     for attr_name, src_key in (
                         ("name", "name"),
                         ("description", "description"),
-                        ("chunking_strategy", "chunking_strategy"),
                         ("expires_after", "expires_after"),
                     ):
                         if src_key in vs_payload and getattr(rag_index, attr_name) != vs_payload.get(src_key):
                             setattr(rag_index, attr_name, vs_payload.get(src_key))
                             changed = True
 
-                    if (
-                        "metadata" in vs_payload
-                        and isinstance(vs_payload.get("metadata"), dict)
-                        and rag_index.metadata_ != vs_payload.get("metadata")
-                    ):
-                        rag_index.metadata_ = vs_payload.get("metadata")
-                        changed = True
+                    if isinstance(vs_payload, dict):
+                        current_meta = rag_index.metadata_ if isinstance(rag_index.metadata_, dict) else {}
+                        provider_meta = vs_payload.get("metadata")
+                        if isinstance(provider_meta, dict):
+                            for k, v in provider_meta.items():
+                                if current_meta.get(k) != v:
+                                    current_meta[k] = v
+                                    changed = True
+
+                        if current_meta.get("provider_payload") != vs_payload:
+                            current_meta["provider_payload"] = vs_payload
+                            changed = True
+
+                        if changed:
+                            rag_index.metadata_ = current_meta
+
+                        provider_status = vs_payload.get("status")
+                        if isinstance(provider_status, str) and provider_status and rag_index.indexing_status != provider_status:
+                            rag_index.indexing_status = provider_status
+                            changed = True
+
+                        provider_created_at = vs_payload.get("created_at")
+                        if isinstance(provider_created_at, (int, float)):
+                            indexed_at = datetime.utcfromtimestamp(provider_created_at)
+                            if rag_index.indexed_at != indexed_at:
+                                rag_index.indexed_at = indexed_at
+                                changed = True
 
                     if changed:
                         self._db.commit()
@@ -374,6 +416,12 @@ class ProviderSyncService:
                     items = provider.list_vector_store_files(
                         vs_id,
                         limit=_DEFAULT_LIST_LIMIT,
+                    )
+                    logger.info(
+                        "provider_sync list_vector_store_files provider=%s vector_store_id=%s payload=%s",
+                        provider_type,
+                        vs_id,
+                        self._dump_payload(items),
                     )
                     if isinstance(items, list):
                         vector_store_files_by_id[vs_id] = items

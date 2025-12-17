@@ -20,10 +20,9 @@ class RagIndex(Base):
     name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    chunking_strategy: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     expires_after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     file_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
-    metadata_: Mapped[dict[str, str] | None] = mapped_column("metadata", JSON, nullable=True)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
 
     indexing_status: Mapped[str] = mapped_column(String(32), default="not_indexed")
     indexed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

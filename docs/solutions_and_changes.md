@@ -46,3 +46,15 @@
   - Обновлены Pydantic-схемы файлов: `FileOut` больше не возвращает `external_file_id`/`external_uploaded_at`.
   - Синхронизация провайдера переведена на сопоставление через `rag_provider_file_uploads` по `(provider_id, external_file_id)`.
   - Добавлена миграция `docs/migrations/0007_update_rag_files_remove_external_provider_fields.sql`.
+
+### 2025-12-17: Payload провайдера сохраняется в `rag_indexes.metadata`, стратегия чанков — на уровне файлов
+
+- Цель:
+  - Сохранять детальную информацию о vector store (статус, статистика файлов, сроки жизни, last_active_at и др.) в локальной БД.
+  - Учитывать, что `chunking_strategy` применяется к файлам, а не к индексу целиком.
+- Изменения:
+  - В `ProviderSyncService` полный payload `retrieve_vector_store(...)` сохраняется в `rag_indexes.metadata.provider_payload`.
+  - `rag_indexes.indexing_status` устанавливается из `payload.status`.
+  - `rag_indexes.indexed_at` устанавливается из `payload.created_at` (timestamp → UTC datetime).
+  - Из `rag_indexes` удалено поле `chunking_strategy` (миграция `docs/migrations/0008_drop_rag_indexes_chunking_strategy.sql`).
+  - При публикации/прикреплении файлов в vector store `chunking_strategy` передаётся из `rag_files.chunking_strategy`.

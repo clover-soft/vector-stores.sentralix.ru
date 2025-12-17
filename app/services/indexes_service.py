@@ -17,10 +17,9 @@ class IndexesService:
         provider_type: str,
         name: str | None,
         description: str | None,
-        chunking_strategy: dict | None,
         expires_after: dict | None,
         file_ids: list[str] | None,
-        metadata: dict[str, str] | None,
+        metadata: dict | None,
     ) -> RagIndex:
         index_id = str(uuid4())
 
@@ -30,7 +29,6 @@ class IndexesService:
             provider_type=provider_type,
             name=name,
             description=description,
-            chunking_strategy=chunking_strategy,
             expires_after=expires_after,
             file_ids=file_ids,
             metadata_=metadata,
@@ -66,10 +64,9 @@ class IndexesService:
         provider_type: str | None,
         name: str | None,
         description: str | None,
-        chunking_strategy: dict | None,
         expires_after: dict | None,
         file_ids: list[str] | None,
-        metadata: dict[str, str] | None,
+        metadata: dict | None,
     ) -> RagIndex | None:
         rag_index = self.get_index(index_id)
         if rag_index is None:
@@ -83,9 +80,6 @@ class IndexesService:
 
         if description is not None:
             rag_index.description = description
-
-        if chunking_strategy is not None:
-            rag_index.chunking_strategy = chunking_strategy
 
         if expires_after is not None:
             rag_index.expires_after = expires_after
