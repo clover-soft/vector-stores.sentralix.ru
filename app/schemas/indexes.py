@@ -80,3 +80,24 @@ class IndexSyncOut(BaseModel):
 class IndexesSyncOut(BaseModel):
     items: list[IndexOut]
     errors: list[str]
+
+
+class IndexPublishOut(BaseModel):
+    provider_type: str
+    vector_store_id: str | None = None
+
+    dry_run: bool
+    created_vector_store: bool
+    will_create_vector_store: bool
+
+    desired_provider_file_ids: list[str]
+    existing_provider_file_ids: list[str]
+    missing_provider_file_ids: list[str]
+    extra_provider_file_ids: list[str]
+    missing_upload_local_file_ids: list[str]
+
+    attached_count: int
+    detached_count: int
+
+    attach_results: list[dict]
+    errors: list[str]

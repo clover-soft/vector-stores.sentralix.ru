@@ -9,6 +9,7 @@ from schemas.indexes import (
     IndexFilesListOut,
     IndexFileOut,
     IndexesListOut,
+    IndexPublishOut,
     IndexesSyncOut,
     IndexOut,
     IndexPatchIn,
@@ -94,17 +95,23 @@ def patch_index(
     return IndexOut.model_validate(rag_index, from_attributes=True)
 
 
-@router.post("/indexes/{index_id}/publish")
+@router.post("/indexes/{index_id}/publish", response_model=IndexPublishOut)
 def publish_index(
     index_id: str,
     detach_extra: bool = True,
     force_upload: bool = False,
+    dry_run: bool = False,
     domain_id: str = Depends(get_domain_id),
     db: Session = Depends(get_db),
 ):
     service = IndexPublishService(db=db, domain_id=domain_id)
     try:
-        result = service.publish(index_id=index_id, force_upload=force_upload, detach_extra=detach_extra)
+        result = service.publish(
+            index_id=index_id,
+            force_upload=force_upload,
+            detach_extra=detach_extra,
+            dry_run=dry_run,
+        )
     except ValueError as e:
         detail = str(e)
         if detail == "Индекс не найден":
@@ -113,15 +120,63 @@ def publish_index(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ошибка публикации в провайдер: {e}") from e
 
-    return {
-        "provider_type": result.get("provider_type"),
-        "vector_store_id": result.get("vector_store_id"),
-        "created_vector_store": bool(result.get("created_vector_store")),
-        "attached_count": int(result.get("attached_count") or 0),
-        "detached_count": int(result.get("detached_count") or 0),
-        "attach_results": result.get("attach_results") or [],
-        "errors": result.get("errors") or [],
-    }
+    return IndexPublishOut(
+        provider_type=str(result.get("provider_type") or ""),
+        vector_store_id=result.get("vector_store_id"),
+        dry_run=bool(result.get("dry_run")),
+        created_vector_store=bool(result.get("created_vector_store")),
+        will_create_vector_store=bool(result.get("will_create_vector_store")),
+        desired_provider_file_ids=list(result.get("desired_provider_file_ids") or []),
+        existing_provider_file_ids=list(result.get("existing_provider_file_ids") or []),
+        missing_provider_file_ids=list(result.get("missing_provider_file_ids") or []),
+        extra_provider_file_ids=list(result.get("extra_provider_file_ids") or []),
+        missing_upload_local_file_ids=list(result.get("missing_upload_local_file_ids") or []),
+        attached_count=int(result.get("attached_count") or 0),
+        detached_count=int(result.get("detached_count") or 0),
+        attach_results=list(result.get("attach_results") or []),
+        errors=list(result.get("errors") or []),
+    )
+
+
+@router.post("/indexes/{index_id}/reindex", response_model=IndexPublishOut)
+def reindex_index(
+    index_id: str,
+    force_upload: bool = False,
+    domain_id: str = Depends(get_domain_id),
+    db: Session = Depends(get_db),
+):
+    service = IndexPublishService(db=db, domain_id=domain_id)
+    try:
+        result = service.publish(
+            index_id=index_id,
+            force_upload=force_upload,
+            detach_extra=True,
+            dry_run=False,
+        )
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Индекс не найден":
+            raise HTTPException(status_code=404, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка публикации в провайдер: {e}") from e
+
+    return IndexPublishOut(
+        provider_type=str(result.get("provider_type") or ""),
+        vector_store_id=result.get("vector_store_id"),
+        dry_run=bool(result.get("dry_run")),
+        created_vector_store=bool(result.get("created_vector_store")),
+        will_create_vector_store=bool(result.get("will_create_vector_store")),
+        desired_provider_file_ids=list(result.get("desired_provider_file_ids") or []),
+        existing_provider_file_ids=list(result.get("existing_provider_file_ids") or []),
+        missing_provider_file_ids=list(result.get("missing_provider_file_ids") or []),
+        extra_provider_file_ids=list(result.get("extra_provider_file_ids") or []),
+        missing_upload_local_file_ids=list(result.get("missing_upload_local_file_ids") or []),
+        attached_count=int(result.get("attached_count") or 0),
+        detached_count=int(result.get("detached_count") or 0),
+        attach_results=list(result.get("attach_results") or []),
+        errors=list(result.get("errors") or []),
+    )
 
 
 @router.post("/indexes/{index_id}/sync", response_model=IndexSyncOut)
