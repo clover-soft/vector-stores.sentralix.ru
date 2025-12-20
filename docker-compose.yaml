@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     environment:
-      - ALLOW_HOSTS=193.110.239.238,146.66.195.8
+      - ALLOW_HOSTS=193.110.239.238,146.66.195.8,80.249.187.131
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=[%(asctime)s][%(name)s][%(levelname)s][%(request_id)s] %(message)s
       - LOG_FILE=/var/log/vector-store-log.log
