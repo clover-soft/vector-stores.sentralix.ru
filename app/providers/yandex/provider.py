@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from openai import OpenAI
@@ -8,6 +9,8 @@ from openai import NotFoundError
 from models.rag_provider_connection import RagProviderConnection
 from providers.base import BaseProvider
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_YANDEX_BASE_URL = "https://rest-assistant.api.cloud.yandex.net/v1"
 
@@ -148,14 +151,27 @@ class YandexProvider(BaseProvider):
         attributes: dict | None = None,
         chunking_strategy: dict | None = None,
     ) -> dict[str, Any]:
+        logger.info(f"attach_file_to_vector_store called: vector_store_id={vector_store_id}, file_id={file_id}")
+        logger.info(f"attributes: {attributes}, chunking_strategy: {chunking_strategy}")
+        
         kwargs: dict[str, Any] = {"file_id": file_id}
         if attributes is not None:
             kwargs["attributes"] = attributes
         if chunking_strategy is not None:
             kwargs["chunking_strategy"] = chunking_strategy
 
-        created = self._client.vector_stores.files.create(vector_store_id, **kwargs)
-        return self._dump(created)
+        logger.info(f"Calling vector_stores.files.create with kwargs: {kwargs}")
+        try:
+            created = self._client.vector_stores.files.create(vector_store_id, **kwargs)
+            logger.info(f"Successfully attached file: {created}")
+            return self._dump(created)
+        except Exception as e:
+            logger.error(f"Error attaching file to vector store: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            # Попробуем получить тело ответа если есть
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                logger.error(f"Response body: {e.response.text}")
+            raise
 
     def retrieve_vector_store_file(self, vector_store_id: str, file_id: str) -> dict[str, Any]:
         item = self._client.vector_stores.files.retrieve(file_id, vector_store_id=vector_store_id)
