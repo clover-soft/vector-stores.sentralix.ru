@@ -148,7 +148,7 @@ class IndexPublishService:
                 vector_store_file_id_by_provider_file_id[provider_file_id] = str(vector_store_file_id)
         chunking_by_provider_file_id: dict[str, dict] = {}
         
-        # Получаем rag_index_files для доступа к chunking_strategy и external_id
+        # Получаем rag_index_files для доступа к external_id
         rag_index_files = (
             self._db.query(RagIndexFile)
             .filter(RagIndexFile.index_id == index_id)
@@ -165,9 +165,9 @@ class IndexPublishService:
             if not index_file or not index_file.external_id:
                 continue
                 
-            # Используем chunking_strategy из rag_index_files
-            if isinstance(index_file.chunking_strategy, dict):
-                chunking_by_provider_file_id[index_file.external_id] = index_file.chunking_strategy
+            # Используем chunking_strategy из rag_files (глобальный для файла)
+            if isinstance(rag_file.chunking_strategy, dict):
+                chunking_by_provider_file_id[index_file.external_id] = rag_file.chunking_strategy
 
         missing_provider_file_ids = desired_provider_file_ids - existing_provider_file_ids
         extra_provider_file_ids: set[str] = set()

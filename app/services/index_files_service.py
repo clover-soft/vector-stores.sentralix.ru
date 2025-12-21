@@ -96,7 +96,6 @@ class IndexFilesService:
             file_id=file_id,
             include_order=next_order,
             external_id=external_id,
-            chunking_strategy=chunking_strategy,
         )
         self._db.add(link)
         self._db.commit()
