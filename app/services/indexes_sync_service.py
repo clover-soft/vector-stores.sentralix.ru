@@ -142,6 +142,29 @@ class IndexesSyncService:
             changed = True
             logger.info(f"Index {rag_index.id} completed indexing at {rag_index.indexed_at}")
 
+        # Обновляем file_ids на основе файлов из vector store
+        current_file_ids = rag_index.file_ids or []
+        provider_file_ids = [file.get("id") for file in provider_files if file.get("id")]
+        
+        if set(current_file_ids) != set(provider_file_ids):
+            logger.info(f"Updating file_ids for index {rag_index.id}: {current_file_ids} -> {provider_file_ids}")
+            rag_index.file_ids = provider_file_ids
+            changed = True
+            logger.info(f"Updated file_ids for index {rag_index.id}: {len(provider_file_ids)} files")
+            
+            # Логируем сопоставление файлов
+            from models.rag_index_file import RagIndexFile
+            rag_index_files = (
+                self._db.query(RagIndexFile)
+                .filter(RagIndexFile.index_id == rag_index.id)
+                .filter(RagIndexFile.external_id.in_(provider_file_ids))
+                .all()
+            )
+            
+            logger.info(f"Found {len(rag_index_files)} matching rag_index_files:")
+            for rif in rag_index_files:
+                logger.info(f"  local_file_id: {rif.file_id}, external_id: {rif.external_id}")
+
         if changed:
             self._db.commit()
             self._db.refresh(rag_index)
