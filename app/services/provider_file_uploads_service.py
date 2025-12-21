@@ -4,12 +4,15 @@ from datetime import datetime
 import hashlib
 from pathlib import Path
 from uuid import uuid4
+import logging
 
 from sqlalchemy.orm import Session
 
 from models.rag_file import RagFile
 from models.rag_provider_file_upload import RagProviderFileUpload
 from services.providers_connections_service import ProvidersConnectionsService
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderFileUploadsService:
@@ -48,8 +51,13 @@ class ProviderFileUploadsService:
         force: bool = False,
         meta: dict | None = None,
     ) -> RagProviderFileUpload:
+        logger.info(f"get_or_sync called: provider_type={provider_type}, local_file_id={local_file_id}, force={force}")
+        
         rag_file = self._get_local_file(local_file_id)
+        logger.info(f"Got local file: {rag_file.file_name}, path: {rag_file.local_path}")
+        
         sha256 = self._calc_sha256(Path(rag_file.local_path))
+        logger.info(f"Calculated SHA256: {sha256}")
 
         upload = (
             self._db.query(RagProviderFileUpload)
@@ -58,6 +66,8 @@ class ProviderFileUploadsService:
             .one_or_none()
         )
 
+        logger.info(f"Existing upload found: {upload is not None}")
+
         if (
             upload is not None
             and not force
@@ -65,8 +75,10 @@ class ProviderFileUploadsService:
             and upload.content_sha256 == sha256
             and upload.external_file_id
         ):
+            logger.info("Returning existing upload")
             return upload
 
+        logger.info("Creating/updating upload record")
         if upload is None:
             upload = RagProviderFileUpload(
                 id=str(uuid4()),
@@ -84,14 +96,20 @@ class ProviderFileUploadsService:
         self._db.commit()
         self._db.refresh(upload)
 
+        logger.info("Getting provider...")
         provider = ProvidersConnectionsService(db=self._db).get_provider(provider_type)
+        logger.info(f"Got provider: {type(provider).__name__}")
 
         try:
+            logger.info(f"Calling provider.create_file for {rag_file.local_path}")
             created = provider.create_file(local_path=rag_file.local_path, meta=meta)
+            logger.info(f"Provider response: {created}")
+            
             external_file_id = created.get("id") or created.get("file_id")
             if not external_file_id:
                 raise ValueError("Провайдер не вернул идентификатор файла")
 
+            logger.info(f"Got external_file_id: {external_file_id}")
             upload.external_file_id = str(external_file_id)
             upload.external_uploaded_at = datetime.utcnow()
             upload.raw_provider_json = created
@@ -102,6 +120,11 @@ class ProviderFileUploadsService:
             self._db.refresh(upload)
             return upload
         except Exception as e:
+            logger.error(f"Error in provider.create_file: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
             upload.status = "failed"
             upload.last_error = str(e)
             self._db.commit()
