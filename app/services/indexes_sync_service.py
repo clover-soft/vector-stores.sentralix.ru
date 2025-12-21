@@ -146,8 +146,23 @@ class IndexesSyncService:
         current_file_ids = rag_index.file_ids or []
         provider_file_ids = [file.get("id") for file in provider_files if file.get("id")]
         
-        if set(current_file_ids) != set(provider_file_ids):
-            logger.info(f"Provider file IDs changed for index {rag_index.id}: {len(current_file_ids)} -> {len(provider_file_ids)} files")
+        # Получаем current external_ids из текущих local file_ids
+        current_external_ids = []
+        if current_file_ids:
+            from models.rag_index_file import RagIndexFile
+            current_rag_index_files = (
+                self._db.query(RagIndexFile)
+                .filter(RagIndexFile.index_id == rag_index.id)
+                .filter(RagIndexFile.file_id.in_(current_file_ids))
+                .all()
+            )
+            current_external_ids = [rif.external_id for rif in current_rag_index_files if rif.external_id]
+        
+        # Сравниваем external_ids, а не local file_ids
+        if set(current_external_ids) != set(provider_file_ids):
+            logger.info(f"Provider file IDs changed for index {rag_index.id}: {len(current_external_ids)} -> {len(provider_file_ids)} files")
+            logger.info(f"Current external_ids: {current_external_ids}")
+            logger.info(f"Provider external_ids: {provider_file_ids}")
             
             # Получаем local file_ids из rag_index_files по external_id
             from models.rag_index_file import RagIndexFile
