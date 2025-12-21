@@ -297,20 +297,31 @@ class YandexProvider(BaseProvider):
         raise ValueError("Не удалось прочитать контент файла от провайдера")
 
     def create_file(self, local_path: str, meta: dict | None = None) -> dict[str, Any]:
-        import mimetypes
+        # Карта соответствия расширений файлов к разрешенным MIME типам Yandex
+        extension_to_mime = {
+            '.json': 'application/json',
+            '.jsonl': 'application/jsonlines',
+            '.doc': 'application/msword',
+            '.pdf': 'application/pdf',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.tex': 'application/x-latex',
+            '.xhtml': 'application/xhtml+xml',
+            '.csv': 'text/csv',
+            '.html': 'text/html',
+            '.htm': 'text/html',
+            '.md': 'text/markdown',
+            '.txt': 'text/plain',
+            '.xml': 'text/xml',
+            '.rtf': 'application/rtf',
+        }
         
-        # Определяем правильный MIME тип для файла
-        mime_type, _ = mimetypes.guess_type(local_path)
-        if not mime_type:
-            # Если не удалось определить, используем стандартные типы для распространенных расширений
-            if local_path.lower().endswith('.docx'):
-                mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            elif local_path.lower().endswith('.pdf'):
-                mime_type = 'application/pdf'
-            elif local_path.lower().endswith('.txt'):
-                mime_type = 'text/plain'
-            else:
-                mime_type = 'text/plain'  # fallback
+        # Определяем MIME тип по расширению файла
+        file_ext = Path(local_path).suffix.lower()
+        mime_type = extension_to_mime.get(file_ext, 'text/plain')  # fallback to text/plain
         
         with open(local_path, "rb") as f:
             created = self._client.files.create(
