@@ -300,6 +300,8 @@ def list_index_files(
             IndexFileOut(
                 include_order=include_order,
                 file=FileOut.model_validate(rag_file, from_attributes=True),
+                external_id=getattr(rag_file, 'external_id', None),
+                chunking_strategy=getattr(rag_file, 'chunking_strategy', None),
             )
         )
 
