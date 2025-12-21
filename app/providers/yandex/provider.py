@@ -167,9 +167,8 @@ class YandexProvider(BaseProvider):
         kwargs: dict[str, Any] = {"file_id": file_id}
         if attributes is not None:
             kwargs["attributes"] = attributes
-        # Временно убираем chunking_strategy для тестирования 500 ошибки
-        # if chunking_strategy is not None:
-        #     kwargs["chunking_strategy"] = chunking_strategy
+        # Yandex API не поддерживает chunking_strategy в attach_file_to_vector_store
+        # chunking_strategy используется только при загрузке файла в create_file
 
         logger.info(f"Calling vector_stores.files.create with kwargs: {kwargs}")
         try:
