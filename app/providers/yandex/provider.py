@@ -298,7 +298,7 @@ class YandexProvider(BaseProvider):
 
     def create_file(self, local_path: str, meta: dict | None = None) -> dict[str, Any]:
         with open(local_path, "rb") as f:
-            created = self._client.files.create(file=f)
+            created = self._client.files.create(file=f, purpose="fine-tune")
 
         data = self._dump(created)
         if meta:
