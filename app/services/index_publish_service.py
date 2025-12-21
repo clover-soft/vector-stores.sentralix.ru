@@ -89,29 +89,37 @@ class IndexPublishService:
         if rows is None:
             raise ValueError("Индекс не найден")
 
+        logger.info("Creating ProviderFileUploadsService...")
         uploads_service = ProviderFileUploadsService(db=self._db)
         uploads: list = []
 
+        logger.info("Initializing file tracking variables...")
         desired_provider_file_ids: set[str] = set()
         missing_upload_local_file_ids: list[str] = []
         upload_by_local_file_id: dict[str, object] = {}
 
+        logger.info(f"Processing files (dry_run={dry_run})...")
         if dry_run:
-            for _, rag_file in rows:
+            logger.info("Processing files in dry_run mode...")
+            for i, (_, rag_file) in enumerate(rows):
+                logger.info(f"Processing file {i+1}/{len(rows)}: {rag_file.id}")
                 upload = self._get_existing_upload(
                     provider_type=provider_type,
                     local_file_id=rag_file.id,
                 )
                 if upload is None:
+                    logger.info(f"Upload not found for file {rag_file.id}")
                     missing_upload_local_file_ids.append(rag_file.id)
                     continue
 
                 if force_upload:
+                    logger.info(f"Force upload enabled for file {rag_file.id}")
                     missing_upload_local_file_ids.append(rag_file.id)
                     continue
 
                 sha256 = self._calc_sha256(Path(rag_file.local_path))
                 if upload.content_sha256 != sha256:
+                    logger.info(f"SHA256 mismatch for file {rag_file.id}")
                     missing_upload_local_file_ids.append(rag_file.id)
                     continue
 
@@ -120,7 +128,9 @@ class IndexPublishService:
                 if upload.external_file_id:
                     desired_provider_file_ids.add(str(upload.external_file_id))
         else:
-            for _, rag_file in rows:
+            logger.info("Processing files in normal mode...")
+            for i, (_, rag_file) in enumerate(rows):
+                logger.info(f"Processing file {i+1}/{len(rows)}: {rag_file.id}")
                 upload = uploads_service.get_or_sync(
                     provider_type=provider_type,
                     local_file_id=rag_file.id,
