@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+from models.rag_index_file import RagIndexFile
+from models.rag_provider_file_upload import RagProviderFileUpload
 from pathlib import Path
-
 from sqlalchemy.orm import Session
 
-from models.rag_provider_file_upload import RagProviderFileUpload
 from services.index_files_service import IndexFilesService
 from services.indexes_service import IndexesService
 from services.provider_file_uploads_service import ProviderFileUploadsService
@@ -147,12 +147,27 @@ class IndexPublishService:
             if vector_store_file_id:
                 vector_store_file_id_by_provider_file_id[provider_file_id] = str(vector_store_file_id)
         chunking_by_provider_file_id: dict[str, dict] = {}
+        
+        # Получаем rag_index_files для доступа к chunking_strategy и external_id
+        rag_index_files = (
+            self._db.query(RagIndexFile)
+            .filter(RagIndexFile.index_id == index_id)
+            .all()
+        )
+        
+        # Создаем отображение file_id -> rag_index_file
+        index_file_by_local_file_id = {
+            rif.file_id: rif for rif in rag_index_files
+        }
+        
         for _, rag_file in rows:
-            upload = upload_by_local_file_id.get(rag_file.id)
-            if not upload or not getattr(upload, "external_file_id", None):
+            index_file = index_file_by_local_file_id.get(rag_file.id)
+            if not index_file or not index_file.external_id:
                 continue
-            if isinstance(rag_file.chunking_strategy, dict):
-                chunking_by_provider_file_id[str(upload.external_file_id)] = rag_file.chunking_strategy
+                
+            # Используем chunking_strategy из rag_index_files
+            if isinstance(index_file.chunking_strategy, dict):
+                chunking_by_provider_file_id[index_file.external_id] = index_file.chunking_strategy
 
         missing_provider_file_ids = desired_provider_file_ids - existing_provider_file_ids
         extra_provider_file_ids: set[str] = set()
