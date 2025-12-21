@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from models.rag_index_file import RagIndexFile
 from models.rag_provider_file_upload import RagProviderFileUpload
 from pathlib import Path
@@ -10,6 +11,8 @@ from services.index_files_service import IndexFilesService
 from services.indexes_service import IndexesService
 from services.provider_file_uploads_service import ProviderFileUploadsService
 from services.providers_connections_service import ProvidersConnectionsService
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_LIST_LIMIT = 1000
 _CHUNK_SIZE_BYTES = 1024 * 1024
@@ -28,13 +31,19 @@ class IndexPublishService:
         detach_extra: bool = True,
         dry_run: bool = False,
     ) -> dict:
+        logger.info(f"Starting publish for index_id={index_id}, force_upload={force_upload}, detach_extra={detach_extra}, dry_run={dry_run}")
+        
         indexes_service = IndexesService(db=self._db, domain_id=self._domain_id)
         rag_index = indexes_service.get_index(index_id)
         if rag_index is None:
             raise ValueError("Индекс не найден")
 
+        logger.info(f"Found index: {rag_index.id}, provider_type: {rag_index.provider_type}, external_id: {rag_index.external_id}")
+
         provider_type = rag_index.provider_type
         provider = ProvidersConnectionsService(db=self._db).get_provider(provider_type)
+
+        logger.info(f"Got provider: {type(provider).__name__}")
 
         errors: list[str] = []
 
