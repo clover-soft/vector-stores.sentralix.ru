@@ -202,6 +202,13 @@ class IndexPublishService:
         if detach_extra:
             extra_provider_file_ids = existing_provider_file_ids - desired_provider_file_ids
 
+        logger.info("File IDs analysis:")
+        logger.info(f"  desired_provider_file_ids: {sorted(desired_provider_file_ids)}")
+        logger.info(f"  existing_provider_file_ids: {sorted(existing_provider_file_ids)}")
+        logger.info(f"  missing_provider_file_ids: {sorted(missing_provider_file_ids)}")
+        logger.info(f"  extra_provider_file_ids: {sorted(extra_provider_file_ids)}")
+        logger.info(f"  detach_extra: {detach_extra}")
+
         desired_provider_file_ids_list = sorted(desired_provider_file_ids)
         existing_provider_file_ids_list = sorted(existing_provider_file_ids)
         missing_provider_file_ids_list = sorted(missing_provider_file_ids)
@@ -227,18 +234,28 @@ class IndexPublishService:
 
         detached_count = 0
         if (not dry_run) and detach_extra:
+            logger.info(f"Starting detach process for {len(extra_provider_file_ids)} extra files")
             for provider_file_id in sorted(extra_provider_file_ids):
+                logger.info(f"Processing extra file: {provider_file_id}")
                 vector_store_file_id = vector_store_file_id_by_provider_file_id.get(provider_file_id)
+                logger.info(f"vector_store_file_id for {provider_file_id}: {vector_store_file_id}")
                 if not vector_store_file_id:
+                    logger.warning(f"No vector_store_file_id found for provider_file_id={provider_file_id}")
                     continue
 
                 try:
+                    logger.info(f"Detaching file {provider_file_id} (vector_store_file_id: {vector_store_file_id}) from vector store {vector_store_id}")
                     provider.detach_file_from_vector_store(str(vector_store_id), vector_store_file_id)
                     detached_count += 1
+                    logger.info(f"Successfully detached file {provider_file_id}")
                 except Exception as e:
+                    logger.error(f"Failed to detach file {provider_file_id}: {e}")
                     errors.append(
                         f"Не удалось открепить файл provider_file_id={provider_file_id} vector_store_file_id={vector_store_file_id}: {e}"
                     )
+            logger.info(f"Detach process completed. Detached {detached_count} files")
+        else:
+            logger.info(f"Skipping detach process. dry_run={dry_run}, detach_extra={detach_extra}")
 
         return {
             "rag_index": rag_index,
