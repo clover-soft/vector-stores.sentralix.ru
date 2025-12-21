@@ -152,28 +152,31 @@ class IndexPublishService:
         existing_provider_file_ids: set[str] = set()
         vector_store_file_id_by_provider_file_id: dict[str, str] = {}
 
-        for item in provider_vs_files or []:
+        logger.info(f"Processing {len(provider_vs_files or [])} files from vector store {vector_store_id}")
+        for i, item in enumerate(provider_vs_files or []):
+            logger.info(f"Processing vector store file {i+1}: {item}")
             if not isinstance(item, dict):
+                logger.warning(f"Skipping non-dict item: {item}")
                 continue
 
             vector_store_file_id = item.get("id")
             provider_file_id = self._extract_external_file_id(item)
+            logger.info(f"Extracted IDs: vector_store_file_id={vector_store_file_id}, provider_file_id={provider_file_id}")
 
             if (not provider_file_id) and vector_store_file_id:
-                try:
-                    detail = provider.retrieve_vector_store_file(vector_store_id, str(vector_store_file_id))
-                    if isinstance(detail, dict):
-                        provider_file_id = self._extract_external_file_id(detail)
-                except Exception:
-                    provider_file_id = None
+                # Fallback: используем vector_store_file_id как provider_file_id
+                provider_file_id = vector_store_file_id
+                logger.info(f"Using vector_store_file_id as provider_file_id fallback: {provider_file_id}")
 
             if not provider_file_id:
+                logger.warning(f"No provider_file_id found for item: {item}")
                 continue
 
             provider_file_id = str(provider_file_id)
             existing_provider_file_ids.add(provider_file_id)
             if vector_store_file_id:
                 vector_store_file_id_by_provider_file_id[provider_file_id] = str(vector_store_file_id)
+            logger.info(f"Added to existing_provider_file_ids: {provider_file_id}")
         chunking_by_provider_file_id: dict[str, dict] = {}
         
         # Получаем rag_index_files для доступа к chunking_strategy и external_id
