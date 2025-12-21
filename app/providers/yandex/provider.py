@@ -181,6 +181,19 @@ class YandexProvider(BaseProvider):
             # Попробуем получить тело ответа если есть
             if hasattr(e, 'response') and hasattr(e.response, 'text'):
                 logger.error(f"Response body: {e.response.text}")
+            # Попробуем получить статус код и заголовки
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                logger.error(f"Response status code: {e.response.status_code}")
+            if hasattr(e, 'response') and hasattr(e.response, 'headers'):
+                logger.error(f"Response headers: {e.response.headers}")
+            # Для 500 ошибок добавим дополнительную информацию
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 500:
+                logger.error("500 Internal Server Error - possible Yandex API issue")
+                logger.error("Request data that caused the error:")
+                logger.error(f"  vector_store_id: {vector_store_id}")
+                logger.error(f"  file_id: {file_id}")
+                logger.error(f"  attributes: {attributes}")
+                logger.error(f"  chunking_strategy: {chunking_strategy}")
             raise
 
     def retrieve_vector_store_file(self, vector_store_id: str, file_id: str) -> dict[str, Any]:
