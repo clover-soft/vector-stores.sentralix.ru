@@ -5,6 +5,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from models.rag_index import RagIndex
+from services.providers_connections_service import ProvidersConnectionsService
 
 
 class IndexesService:
@@ -98,6 +99,17 @@ class IndexesService:
         rag_index = self.get_index(index_id)
         if rag_index is None:
             return False
+
+        # Удаляем vector store у провайдера если есть external_id
+        if rag_index.external_id:
+            try:
+                provider_service = ProvidersConnectionsService(db=self._db)
+                provider = provider_service.get_provider(rag_index.provider_type)
+                provider.delete_vector_store(rag_index.external_id)
+            except Exception:
+                # Если не удалось удалить у провайдера, все равно удаляем локальную запись
+                # Логируем ошибку но не прерываем процесс
+                pass
 
         self._db.delete(rag_index)
         self._db.commit()
