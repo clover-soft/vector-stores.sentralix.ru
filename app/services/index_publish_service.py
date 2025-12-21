@@ -233,6 +233,27 @@ class IndexPublishService:
                 except Exception as e:
                     errors.append(f"Не удалось прикрепить файл provider_file_id={provider_file_id}: {e}")
 
+        # Проверяем состояние vector store после прикрепления файлов
+        if not dry_run and attached_count > 0:
+            logger.info(f"Checking vector store payload after attaching {attached_count} files...")
+            try:
+                vector_store_payload = provider.retrieve_vector_store(str(vector_store_id))
+                logger.info(f"Vector store payload after attach: {vector_store_payload}")
+                
+                # Также проверяем список файлов
+                files_list = provider.list_vector_store_files(str(vector_store_id), limit=1000)
+                if isinstance(files_list, list):
+                    logger.info(f"Files in vector store after attach: {len(files_list)} files")
+                    for i, file_info in enumerate(files_list):
+                        if isinstance(file_info, dict):
+                            file_id = file_info.get('id', 'unknown')
+                            file_status = file_info.get('status', 'unknown')
+                            logger.info(f"  File {i+1}/{len(files_list)}: id={file_id}, status={file_status}")
+                else:
+                    logger.warning(f"Unexpected files list response: {type(files_list)}")
+            except Exception as e:
+                logger.error(f"Error checking vector store after attach: {e}")
+
         batch_payload: dict | None = None
 
         detached_count = 0
