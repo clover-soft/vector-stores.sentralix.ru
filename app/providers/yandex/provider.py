@@ -154,6 +154,16 @@ class YandexProvider(BaseProvider):
         logger.info(f"attach_file_to_vector_store called: vector_store_id={vector_store_id}, file_id={file_id}")
         logger.info(f"attributes: {attributes}, chunking_strategy: {chunking_strategy}")
         
+        # Сначала проверим, не прикреплен ли уже файл к vector store
+        try:
+            logger.info(f"Checking if file {file_id} is already attached to vector store {vector_store_id}")
+            existing_file = self._client.vector_stores.files.retrieve(file_id, vector_store_id=vector_store_id)
+            logger.info(f"File is already attached: {existing_file}")
+            return self._dump(existing_file)
+        except Exception as e:
+            logger.info(f"File is not attached yet: {e}")
+            # Файл не прикреплен, продолжаем с прикреплением
+        
         kwargs: dict[str, Any] = {"file_id": file_id}
         if attributes is not None:
             kwargs["attributes"] = attributes
