@@ -48,15 +48,19 @@ class IndexPublishService:
         errors: list[str] = []
 
         had_external_id = bool(rag_index.external_id)
+        logger.info(f"had_external_id: {had_external_id}")
 
         created_vector_store = False
         will_create_vector_store = (not had_external_id)
+        logger.info(f"will_create_vector_store: {will_create_vector_store}")
 
         if not rag_index.external_id:
+            logger.info("Creating new vector store...")
             if dry_run:
                 vector_store_id = None
             else:
                 provider_metadata = self._metadata_for_provider(rag_index.metadata_)
+                logger.info("Calling provider.create_vector_store...")
                 created = provider.create_vector_store(
                     name=rag_index.name,
                     description=rag_index.description,
@@ -64,6 +68,7 @@ class IndexPublishService:
                     file_ids=None,
                     metadata=provider_metadata,
                 )
+                logger.info(f"Vector store created: {created}")
                 vector_store_id = created.get("id")
                 if not vector_store_id:
                     raise ValueError("Провайдер не вернул id vector_store")
@@ -73,10 +78,14 @@ class IndexPublishService:
                 self._db.refresh(rag_index)
                 created_vector_store = True
         else:
+            logger.info(f"Using existing vector store: {rag_index.external_id}")
             vector_store_id = str(rag_index.external_id)
 
+        logger.info("Getting index files service...")
         index_files_service = IndexFilesService(db=self._db, domain_id=self._domain_id)
+        logger.info("Calling list_files...")
         rows = index_files_service.list_files(index_id=index_id)
+        logger.info(f"Got {len(rows) if rows else 0} files from list_files")
         if rows is None:
             raise ValueError("Индекс не найден")
 
