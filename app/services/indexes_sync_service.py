@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from models.rag_index import RagIndex
 from services.providers_connections_service import ProvidersConnectionsService
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_LIST_LIMIT = 1000
 _SYNC_SKIP_IF_DONE = True
@@ -17,6 +20,8 @@ class IndexesSyncService:
         self._domain_id = domain_id
 
     def sync_index(self, *, index_id: str, force: bool = False) -> dict:
+        logger.info(f"Starting sync for index_id={index_id}, force={force}")
+        
         rag_index = (
             self._db.query(RagIndex)
             .filter(RagIndex.domain_id == self._domain_id)
@@ -25,6 +30,8 @@ class IndexesSyncService:
         )
         if rag_index is None:
             raise ValueError("Индекс не найден")
+
+        logger.info(f"Found index: {rag_index.id}, provider_type={rag_index.provider_type}, external_id={rag_index.external_id}, current_status={rag_index.indexing_status}")
 
         return self._sync_rag_index(rag_index, force=force)
 
@@ -61,6 +68,7 @@ class IndexesSyncService:
             and _SYNC_SKIP_IF_DONE
             and rag_index.indexing_status in {"completed"}
         ):
+            logger.info(f"Skipping sync for completed index {rag_index.id}")
             report = {
                 "provider_type": rag_index.provider_type,
                 "vector_store_id": str(rag_index.external_id),
@@ -75,20 +83,36 @@ class IndexesSyncService:
             }
 
         provider_type = rag_index.provider_type
-        provider = ProvidersConnectionsService(db=self._db).get_provider(provider_type)
         vector_store_id = str(rag_index.external_id)
-
+        
+        logger.info(f"Syncing index {rag_index.id} with provider {provider_type}, vector_store_id={vector_store_id}")
+        
+        provider = ProvidersConnectionsService(db=self._db).get_provider(provider_type)
         vector_store_payload = provider.retrieve_vector_store(vector_store_id)
+        
+        logger.info(f"Retrieved vector store payload: {vector_store_payload}")
 
         provider_files: list[dict] = []
         try:
             items = provider.list_vector_store_files(vector_store_id, limit=_DEFAULT_LIST_LIMIT)
             if isinstance(items, list):
                 provider_files = [i for i in items if isinstance(i, dict)]
-        except Exception:
+                logger.info(f"Retrieved {len(provider_files)} files from vector store {vector_store_id}")
+                
+                # Логируем каждый файл с его статусом
+                for i, file_info in enumerate(provider_files):
+                    file_id = file_info.get('id', 'unknown')
+                    file_status = file_info.get('status', 'unknown')
+                    file_name = file_info.get('filename', 'unknown')
+                    logger.info(f"  File {i+1}/{len(provider_files)}: id={file_id}, name={file_name}, status={file_status}")
+            else:
+                logger.warning(f"Unexpected response type from list_vector_store_files: {type(items)}")
+        except Exception as e:
+            logger.error(f"Error retrieving files from vector store {vector_store_id}: {e}")
             provider_files = []
 
         next_status = self._aggregate_status(vector_store_payload, provider_files)
+        logger.info(f"Aggregated status for index {rag_index.id}: {rag_index.indexing_status} -> {next_status}")
 
         changed = False
 
@@ -98,25 +122,32 @@ class IndexesSyncService:
                 current_meta["provider_payload"] = vector_store_payload
                 rag_index.metadata_ = current_meta
                 changed = True
+                logger.info(f"Updated provider payload for index {rag_index.id}")
 
             # Устанавливаем expires_after из payload провайдера если он еще не установлен
             provider_expires_after = vector_store_payload.get("expires_after")
             if provider_expires_after is not None and rag_index.expires_after is None:
                 rag_index.expires_after = provider_expires_after
                 changed = True
+                logger.info(f"Set expires_after for index {rag_index.id}: {provider_expires_after}")
 
         prev_status = rag_index.indexing_status
         if rag_index.indexing_status != next_status:
             rag_index.indexing_status = next_status
             changed = True
+            logger.info(f"Status changed for index {rag_index.id}: {prev_status} -> {next_status}")
 
         if prev_status not in {"completed"} and next_status == "completed":
             rag_index.indexed_at = datetime.utcnow()
             changed = True
+            logger.info(f"Index {rag_index.id} completed indexing at {rag_index.indexed_at}")
 
         if changed:
             self._db.commit()
             self._db.refresh(rag_index)
+            logger.info(f"Committed changes for index {rag_index.id}")
+        else:
+            logger.info(f"No changes for index {rag_index.id}")
 
         report = {
             "provider_type": provider_type,
@@ -126,6 +157,8 @@ class IndexesSyncService:
             "forced": bool(force),
             "skipped": False,
         }
+
+        logger.info(f"Sync completed for index {rag_index.id}: {report}")
 
         return {
             "rag_index": rag_index,
