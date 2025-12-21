@@ -167,8 +167,9 @@ class YandexProvider(BaseProvider):
         kwargs: dict[str, Any] = {"file_id": file_id}
         if attributes is not None:
             kwargs["attributes"] = attributes
-        if chunking_strategy is not None:
-            kwargs["chunking_strategy"] = chunking_strategy
+        # Временно убираем chunking_strategy для тестирования 500 ошибки
+        # if chunking_strategy is not None:
+        #     kwargs["chunking_strategy"] = chunking_strategy
 
         logger.info(f"Calling vector_stores.files.create with kwargs: {kwargs}")
         try:
