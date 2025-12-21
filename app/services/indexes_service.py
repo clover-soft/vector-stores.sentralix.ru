@@ -31,7 +31,7 @@ class IndexesService:
             name=name,
             description=description,
             expires_after=expires_after,
-            file_ids=file_ids,
+            file_ids=file_ids or [],
             metadata_=metadata,
             indexing_status="not_indexed",
         )
@@ -86,7 +86,7 @@ class IndexesService:
             rag_index.expires_after = expires_after
 
         if file_ids is not None:
-            rag_index.file_ids = file_ids
+            rag_index.file_ids = file_ids or []
 
         if metadata is not None:
             rag_index.metadata_ = metadata

@@ -271,7 +271,7 @@ class ProviderSyncService:
                         name=vs_payload.get("name"),
                         description=vs_payload.get("description"),
                         expires_after=vs_payload.get("expires_after"),
-                        file_ids=None,
+                        file_ids=[],
                         metadata_=metadata,
                         indexing_status=str(provider_status),
                         indexed_at=indexed_at,
