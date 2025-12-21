@@ -147,12 +147,9 @@ class IndexesSyncService:
         provider_file_ids = [file.get("id") for file in provider_files if file.get("id")]
         
         if set(current_file_ids) != set(provider_file_ids):
-            logger.info(f"Updating file_ids for index {rag_index.id}: {current_file_ids} -> {provider_file_ids}")
-            rag_index.file_ids = provider_file_ids
-            changed = True
-            logger.info(f"Updated file_ids for index {rag_index.id}: {len(provider_file_ids)} files")
+            logger.info(f"Provider file IDs changed for index {rag_index.id}: {len(current_file_ids)} -> {len(provider_file_ids)} files")
             
-            # Логируем сопоставление файлов
+            # Получаем local file_ids из rag_index_files по external_id
             from models.rag_index_file import RagIndexFile
             rag_index_files = (
                 self._db.query(RagIndexFile)
@@ -161,6 +158,24 @@ class IndexesSyncService:
                 .all()
             )
             
+            # Создаем映射 external_id -> local file_id
+            external_to_local = {rif.external_id: rif.file_id for rif in rag_index_files}
+            
+            # Формируем список локальных file_ids в том же порядке как provider_file_ids
+            local_file_ids = []
+            for external_id in provider_file_ids:
+                local_id = external_to_local.get(external_id)
+                if local_id:
+                    local_file_ids.append(local_id)
+                else:
+                    logger.warning(f"No local file_id found for external_id={external_id}")
+            
+            logger.info(f"Updating file_ids for index {rag_index.id}: {current_file_ids} -> {local_file_ids}")
+            rag_index.file_ids = local_file_ids
+            changed = True
+            logger.info(f"Updated file_ids for index {rag_index.id}: {len(local_file_ids)} local files")
+            
+            # Логируем сопоставление файлов
             logger.info(f"Found {len(rag_index_files)} matching rag_index_files:")
             for rif in rag_index_files:
                 logger.info(f"  local_file_id: {rif.file_id}, external_id: {rif.external_id}")
