@@ -5,6 +5,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from models.rag_index import RagIndex
+from models.rag_index_file import RagIndexFile
 from services.providers_connections_service import ProvidersConnectionsService
 
 
@@ -110,6 +111,9 @@ class IndexesService:
                 # Если не удалось удалить у провайдера, все равно удаляем локальную запись
                 # Логируем ошибку но не прерываем процесс
                 pass
+
+        # Удаляем связанные записи в rag_index_files
+        self._db.query(RagIndexFile).filter(RagIndexFile.index_id == index_id).delete()
 
         self._db.delete(rag_index)
         self._db.commit()
