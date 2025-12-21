@@ -108,7 +108,6 @@ class FilesService:
         file_name: str | None,
         tags: dict | list | None,
         notes: str | None,
-        chunking_strategy: dict | None,
     ) -> RagFile | None:
         rag_file = self.get_file(file_id)
         if rag_file is None:
@@ -135,9 +134,6 @@ class FilesService:
 
         if notes is not None:
             rag_file.notes = notes
-
-        if chunking_strategy is not None:
-            rag_file.chunking_strategy = chunking_strategy
 
         self._db.commit()
         self._db.refresh(rag_file)

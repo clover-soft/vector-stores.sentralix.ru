@@ -60,8 +60,8 @@ class IndexFilesService:
         if next_order <= 0:
             next_order = _INCLUDE_ORDER_START
 
-        # Используем переданную стратегию чанков или берем из файла
-        final_chunking_strategy = chunking_strategy if chunking_strategy is not None else rag_file.chunking_strategy
+        # Используем переданную стратегию чанков
+        final_chunking_strategy = chunking_strategy
 
         # Загружаем файл в провайдер если у индекса есть external_id
         external_id = None

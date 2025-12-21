@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, DateTime, String, Text
+from sqlalchemy import BigInteger, DateTime, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -18,8 +18,6 @@ class RagFile(Base):
     file_type: Mapped[str] = mapped_column(String(128))
     local_path: Mapped[str] = mapped_column(String(1024))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
-
-    chunking_strategy: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     tags: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

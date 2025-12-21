@@ -116,7 +116,6 @@ def patch_file(
             file_name=payload.file_name,
             tags=payload.tags,
             notes=payload.notes,
-            chunking_strategy=payload.chunking_strategy,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

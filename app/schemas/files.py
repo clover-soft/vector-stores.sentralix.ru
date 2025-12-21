@@ -17,8 +17,6 @@ class FileOut(BaseModel):
     tags: dict | list | None = None
     notes: str | None = None
 
-    chunking_strategy: dict | None = None
-
     created_at: datetime
     updated_at: datetime
 
@@ -31,7 +29,6 @@ class FilePatchIn(BaseModel):
     file_name: str | None = Field(default=None)
     tags: dict | list | None = Field(default=None)
     notes: str | None = Field(default=None)
-    chunking_strategy: dict | None = Field(default=None)
 
 
 class FileChangeDomainIn(BaseModel):
