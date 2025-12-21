@@ -7,7 +7,7 @@ from openai import NotFoundError
 
 from models.rag_provider_connection import RagProviderConnection
 from providers.base import BaseProvider
-
+from pathlib import Path
 
 _DEFAULT_YANDEX_BASE_URL = "https://rest-assistant.api.cloud.yandex.net/v1"
 
@@ -297,8 +297,26 @@ class YandexProvider(BaseProvider):
         raise ValueError("Не удалось прочитать контент файла от провайдера")
 
     def create_file(self, local_path: str, meta: dict | None = None) -> dict[str, Any]:
+        import mimetypes
+        
+        # Определяем правильный MIME тип для файла
+        mime_type, _ = mimetypes.guess_type(local_path)
+        if not mime_type:
+            # Если не удалось определить, используем стандартные типы для распространенных расширений
+            if local_path.lower().endswith('.docx'):
+                mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            elif local_path.lower().endswith('.pdf'):
+                mime_type = 'application/pdf'
+            elif local_path.lower().endswith('.txt'):
+                mime_type = 'text/plain'
+            else:
+                mime_type = 'text/plain'  # fallback
+        
         with open(local_path, "rb") as f:
-            created = self._client.files.create(file=f, purpose="fine-tune")
+            created = self._client.files.create(
+                file=(Path(local_path).name, f, mime_type), 
+                purpose="fine-tune"
+            )
 
         data = self._dump(created)
         if meta:
