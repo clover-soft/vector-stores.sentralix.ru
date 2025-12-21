@@ -33,7 +33,7 @@ class IndexFilesService:
             .one_or_none()
         )
 
-    def attach_file(self, index_id: str, file_id: str) -> None:
+    def attach_file(self, index_id: str, file_id: str, chunking_strategy: dict | None = None) -> None:
         rag_index = self._get_index(index_id)
         if rag_index is None:
             raise ValueError("Индекс не найден")
@@ -60,9 +60,11 @@ class IndexFilesService:
         if next_order <= 0:
             next_order = _INCLUDE_ORDER_START
 
+        # Используем переданную стратегию чанков или берем из файла
+        final_chunking_strategy = chunking_strategy or rag_file.chunking_strategy
+
         # Загружаем файл в провайдер если у индекса есть external_id
         external_id = None
-        chunking_strategy = rag_file.chunking_strategy  # По умолчанию берем из файла
         
         if rag_index.external_id:
             try:
@@ -75,7 +77,7 @@ class IndexFilesService:
                     provider_type=rag_index.provider_type,
                     local_file_id=file_id,
                     force=False,
-                    meta={"chunking_strategy": chunking_strategy} if chunking_strategy else None
+                    meta={"chunking_strategy": final_chunking_strategy} if final_chunking_strategy else None
                 )
                 
                 external_id = upload.external_file_id
@@ -96,6 +98,7 @@ class IndexFilesService:
             file_id=file_id,
             include_order=next_order,
             external_id=external_id,
+            chunking_strategy=final_chunking_strategy,
         )
         self._db.add(link)
         self._db.commit()

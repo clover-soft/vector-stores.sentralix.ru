@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from schemas.indexes import (
+    AttachFileIn,
     IndexCreateIn,
     IndexFilesListOut,
     IndexFileOut,
@@ -252,12 +253,13 @@ def delete_index(
 def attach_file(
     index_id: str,
     file_id: str,
+    payload: AttachFileIn,
     domain_id: str = Depends(get_domain_id),
     db: Session = Depends(get_db),
 ):
     service = IndexFilesService(db=db, domain_id=domain_id)
     try:
-        service.attach_file(index_id=index_id, file_id=file_id)
+        service.attach_file(index_id=index_id, file_id=file_id, chunking_strategy=payload.chunking_strategy)
     except ValueError as e:
         detail = str(e)
         if detail == "Файл уже привязан к индексу":

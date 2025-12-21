@@ -57,10 +57,16 @@ class IndexesListOut(BaseModel):
 class IndexFileOut(BaseModel):
     include_order: int
     file: FileOut
+    external_id: str | None = None
+    chunking_strategy: dict | None = None
 
 
 class IndexFilesListOut(BaseModel):
     items: list[IndexFileOut]
+
+
+class AttachFileIn(BaseModel):
+    chunking_strategy: dict | None = None
 
 
 class IndexProviderUploadOut(BaseModel):
