@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from openai import OpenAI
@@ -174,6 +175,35 @@ class YandexProvider(BaseProvider):
         try:
             created = self._client.vector_stores.files.create(vector_store_id, **kwargs)
             logger.info(f"Successfully attached file: {created}")
+            
+            # Ожидаем завершения обработки файла
+            if hasattr(created, 'status') and created.status == 'in_progress':
+                logger.info(f"File {file_id} is processing, waiting for completion...")
+                max_wait_time = 60  # Максимальное время ожидания 60 секунд
+                wait_interval = 2   # Интервал проверки 2 секунды
+                elapsed_time = 0
+                
+                while elapsed_time < max_wait_time:
+                    try:
+                        updated_file = self._client.vector_stores.files.retrieve(file_id, vector_store_id=vector_store_id)
+                        logger.info(f"File status: {updated_file.status}")
+                        
+                        if updated_file.status == 'completed':
+                            logger.info(f"File {file_id} processing completed successfully")
+                            return self._dump(updated_file)
+                        elif updated_file.status == 'failed':
+                            logger.error(f"File {file_id} processing failed: {updated_file.last_error}")
+                            return self._dump(updated_file)
+                        
+                        time.sleep(wait_interval)
+                        elapsed_time += wait_interval
+                    except Exception as e:
+                        logger.warning(f"Error checking file status: {e}")
+                        time.sleep(wait_interval)
+                        elapsed_time += wait_interval
+                
+                logger.warning(f"File {file_id} processing timed out after {max_wait_time} seconds")
+            
             return self._dump(created)
         except Exception as e:
             logger.error(f"Error attaching file to vector store: {e}")
