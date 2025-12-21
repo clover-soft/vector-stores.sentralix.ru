@@ -127,11 +127,30 @@ class IndexFilesService:
             return None
 
         rows = (
-            self._db.query(RagIndexFile.include_order, RagFile)
+            self._db.query(RagIndexFile.include_order, RagFile.id, RagFile.domain_id, RagFile.file_name, 
+                          RagFile.file_type, RagFile.local_path, RagFile.size_bytes, RagFile.tags, 
+                          RagFile.notes, RagFile.created_at, RagFile.updated_at)
             .join(RagFile, RagFile.id == RagIndexFile.file_id)
             .filter(RagIndexFile.index_id == index_id)
             .filter(RagFile.domain_id == self._domain_id)
             .order_by(RagIndexFile.include_order.asc())
             .all()
         )
-        return [(include_order, rag_file) for include_order, rag_file in rows]
+
+        result = []
+        for include_order, file_id, domain_id, file_name, file_type, local_path, size_bytes, tags, notes, created_at, updated_at in rows:
+            rag_file = RagFile(
+                id=file_id,
+                domain_id=domain_id,
+                file_name=file_name,
+                file_type=file_type,
+                local_path=local_path,
+                size_bytes=size_bytes,
+                tags=tags,
+                notes=notes,
+                created_at=created_at,
+                updated_at=updated_at
+            )
+            result.append((include_order, rag_file))
+        
+        return result
