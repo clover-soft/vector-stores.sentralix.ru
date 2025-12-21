@@ -59,7 +59,7 @@ class IndexesSyncService:
         if (
             (not force)
             and _SYNC_SKIP_IF_DONE
-            and rag_index.indexing_status in {"done", "completed"}
+            and rag_index.indexing_status in {"completed"}
         ):
             report = {
                 "provider_type": rag_index.provider_type,
@@ -99,12 +99,18 @@ class IndexesSyncService:
                 rag_index.metadata_ = current_meta
                 changed = True
 
+            # Устанавливаем expires_after из payload провайдера если он еще не установлен
+            provider_expires_after = vector_store_payload.get("expires_after")
+            if provider_expires_after is not None and rag_index.expires_after is None:
+                rag_index.expires_after = provider_expires_after
+                changed = True
+
         prev_status = rag_index.indexing_status
         if rag_index.indexing_status != next_status:
             rag_index.indexing_status = next_status
             changed = True
 
-        if prev_status not in {"done", "completed"} and next_status == "done":
+        if prev_status not in {"completed"} and next_status == "completed":
             rag_index.indexed_at = datetime.utcnow()
             changed = True
 
@@ -140,14 +146,14 @@ class IndexesSyncService:
         if any(s == "in_progress" for s in normalized):
             return "in_progress"
         if provider_files and all(s == "completed" for s in normalized):
-            return "done"
+            return "completed"
 
         if isinstance(vector_store_payload, dict):
             status = vector_store_payload.get("status")
             if isinstance(status, str) and status:
                 normalized_vs = self._normalize_status(status)
                 if normalized_vs == "completed":
-                    return "done"
+                    return "completed"
                 return normalized_vs
 
         return "not_indexed"
