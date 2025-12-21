@@ -74,7 +74,6 @@ class FilesService:
             file_type=detected_type,
             local_path=str(path),
             size_bytes=size_bytes,
-            chunking_strategy=chunking_strategy,
             tags=tags,
             notes=notes,
         )
